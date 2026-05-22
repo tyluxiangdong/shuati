@@ -1,0 +1,19 @@
+{
+  "name": "quiz-app-server",
+  "version": "1.0.0",
+  "description": "刷题小程序后端服务",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.0.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "xlsx": "^0.18.5",
+    "uuid": "^10.0.0"
+  }
+}

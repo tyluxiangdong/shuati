@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Database (auto-generated)
+server/quiz.db
+server/quiz.db-shm
+server/quiz.db-wal
+
+# Uploads
+server/uploads/*
+!server/uploads/.gitkeep
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Playwright test artifacts
+.playwright-cli/

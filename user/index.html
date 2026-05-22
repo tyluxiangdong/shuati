@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>刷题小程序</title>
+  <script src="/vue.global.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; color: #303133; }
+    .container { max-width: 420px; margin: 0 auto; background: #fff; min-height: 100vh; }
+
+    /* Nav */
+    .nav { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; padding: 14px 16px; font-size: 17px; font-weight: 600; }
+    .nav span.back { width: 28px; cursor: pointer; }
+    .page { padding: 20px 16px; }
+
+    /* Login */
+    .login-box { text-align: center; padding: 60px 16px 30px; }
+    .login-box .icon { font-size: 56px; margin-bottom: 12px; }
+    .login-box h2 { font-size: 22px; margin-bottom: 4px; }
+    .login-box p { font-size: 14px; color: #909399; margin-bottom: 24px; }
+
+    input.input { width: 100%; padding: 14px; border: 2px solid #e4e7ed; border-radius: 12px; font-size: 16px; outline: none; text-align: center; }
+    input.input:focus { border-color: #667eea; }
+
+    .btn { display: inline-block; width: 100%; padding: 14px; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; }
+    .btn-primary { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; }
+    .btn-primary:disabled { opacity: 0.5; }
+    .btn-outline { background: #fff; color: #667eea; border: 2px solid #667eea; }
+    .btn-danger { background: #f56c6c; color: #fff; }
+    .btn-sm { width: auto; padding: 6px 16px; font-size: 13px; }
+
+    .mt-12 { margin-top: 12px; }
+    .mt-20 { margin-top: 20px; }
+    .mb-12 { margin-bottom: 12px; }
+    .mb-20 { margin-bottom: 20px; }
+
+    /* User card */
+    .user-card { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; border-radius: 16px; padding: 20px; margin-bottom: 20px; }
+    .user-card .name { font-size: 18px; font-weight: 600; }
+    .user-card .expire { font-size: 13px; opacity: 0.8; margin-top: 4px; }
+    .user-card .expire.warn { color: #ffd666; }
+
+    .stats { display: flex; gap: 12px; margin-bottom: 20px; }
+    .stat { flex: 1; background: #f8f9fc; border-radius: 12px; padding: 16px; text-align: center; }
+    .stat .num { font-size: 24px; font-weight: 700; color: #667eea; }
+    .stat .lbl { font-size: 12px; color: #909399; margin-top: 4px; }
+
+    .modes { display: flex; flex-direction: column; gap: 12px; }
+    .mode { display: flex; align-items: center; padding: 18px; border-radius: 14px; cursor: pointer; border: none; width: 100%; text-align: left; font-size: inherit; transition: transform 0.15s; }
+    .mode:active { transform: scale(0.98); }
+    .mode.seq { background: linear-gradient(135deg, #e8f5e9, #c8e6c9); }
+    .mode.exam { background: linear-gradient(135deg, #e3f2fd, #bbdefb); }
+    .mode.wrong { background: linear-gradient(135deg, #fff3e0, #ffe0b2); }
+    .mode .mi { font-size: 36px; margin-right: 16px; }
+    .mode .mt { font-size: 17px; font-weight: 600; color: #303133; }
+    .mode .md { font-size: 13px; color: #606266; margin-top: 3px; }
+
+    /* Bottom nav */
+    .bnav { position: fixed; bottom: 0; width: 100%; max-width: 420px; display: flex; background: #fff; border-top: 1px solid #ebeef5; }
+    .bnav .bi { flex: 1; text-align: center; padding: 8px 0; border: none; background: none; cursor: pointer; font-size: 11px; color: #909399; }
+    .bnav .bi.act { color: #667eea; }
+
+    /* Practice */
+    .pbar { height: 6px; background: #ebeef5; border-radius: 3px; margin-bottom: 16px; overflow: hidden; }
+    .pbar .fill { height: 100%; background: linear-gradient(90deg, #667eea, #764ba2); border-radius: 3px; transition: width 0.3s; }
+    .qhead { display: flex; justify-content: space-between; font-size: 13px; color: #909399; margin-bottom: 12px; }
+    .qtype { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; margin-bottom: 8px; }
+    .qtype.single { background: #e8f5e9; color: #2e7d32; }
+    .qtype.multi { background: #fff3e0; color: #e65100; }
+    .qtype.judge { background: #e3f2fd; color: #1565c0; }
+    .qtitle { font-size: 17px; line-height: 1.6; margin-bottom: 20px; font-weight: 500; }
+    .opts { display: flex; flex-direction: column; gap: 10px; }
+    .opt { display: flex; align-items: center; padding: 14px 16px; border: 2px solid #e4e7ed; border-radius: 12px; cursor: pointer; transition: all 0.2s; font-size: 15px; background: none; width: 100%; text-align: left; }
+    .opt:active { transform: scale(0.98); }
+    .opt.sel { border-color: #667eea; background: #f0f2ff; }
+    .opt.correct { border-color: #67c23a; background: #f0f9eb; }
+    .opt.wrong { border-color: #f56c6c; background: #fef0f0; }
+    .opt .ol { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #dcdfe6; display: flex; align-items: center; justify-content: center; margin-right: 12px; font-size: 13px; font-weight: 600; flex-shrink: 0; }
+    .opt.sel .ol { background: #667eea; color: #fff; border-color: #667eea; }
+    .feedback { padding: 14px; border-radius: 10px; margin-top: 16px; font-size: 14px; line-height: 1.6; }
+    .feedback.ok { background: #f0f9eb; color: #2e7d32; border: 1px solid #c8e6c9; }
+    .feedback.err { background: #fef0f0; color: #c62828; border: 1px solid #ffcdd2; }
+
+    /* Result */
+    .result { text-align: center; padding: 30px 16px; }
+    .result .score { font-size: 56px; font-weight: 700; margin-bottom: 8px; }
+    .result .score.pass { color: #67c23a; }
+    .result .score.fail { color: #f56c6c; }
+    .result .score small { font-size: 24px; }
+    .result .detail { display: flex; justify-content: center; gap: 24px; margin: 16px 0 24px; }
+    .result .detail div { text-align: center; }
+    .result .detail .dnum { font-size: 28px; font-weight: 700; }
+    .result .detail .dlbl { font-size: 12px; color: #909399; }
+
+    /* Packages */
+    .pkg { background: #f8f9fc; border-radius: 12px; padding: 14px; margin-bottom: 10px; }
+    .pkg .pn { font-size: 16px; font-weight: 600; }
+    .pkg .pd { font-size: 13px; color: #909399; margin: 4px 0; }
+    .pkg .pm { display: flex; gap: 16px; font-size: 13px; color: #606266; }
+    .pkg .pp { font-size: 20px; font-weight: 700; color: #667eea; }
+
+    /* Wrong list */
+    .witem { padding: 14px; border-bottom: 1px solid #ebeef5; }
+    .witem .wt { font-size: 14px; color: #303133; margin-bottom: 8px; }
+    .witem .wa { display: flex; gap: 8px; }
+
+    /* Analysis */
+    .acard { background: #f8f9fc; padding: 14px; border-radius: 10px; margin-bottom: 10px; }
+    .acard .at { font-size: 14px; font-weight: 500; margin-bottom: 6px; }
+    .acard .aa { font-size: 13px; color: #909399; margin-bottom: 4px; }
+    .acard .aa .your { color: #f56c6c; }
+    .acard .aa .right { color: #67c23a; }
+
+    /* Toast */
+    .toast { position: fixed; top: 60px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.75); color: #fff; padding: 10px 24px; border-radius: 24px; font-size: 14px; transition: all 0.3s; opacity: 0; pointer-events: none; z-index: 999; max-width: 340px; }
+    .toast.show { opacity: 1; }
+
+    /* Empty */
+    .empty { text-align: center; padding: 40px 16px; color: #909399; }
+    .empty .ei { font-size: 48px; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div class="container">
+    <!-- Toast -->
+    <div class="toast" :class="{show:!!msg}">{{msg}}</div>
+
+    <!-- Login -->
+    <div v-if="state==='login'" class="page">
+      <div class="login-box">
+        <div class="icon">📚</div>
+        <h2>刷题小程序</h2>
+        <p>海量题库，轻松备考</p>
+      </div>
+      <input class="input" v-model="nickname" placeholder="请输入用户名" @keyup.enter="login" />
+      <button class="btn btn-primary mt-12" @click="login" :disabled="!nickname">进入系统</button>
+    </div>
+
+    <!-- Activated Home -->
+    <div v-else-if="state==='home' && info.activated">
+      <div class="nav">刷题小程序</div>
+      <div class="page" style="padding-bottom:80px">
+        <div class="user-card">
+          <div class="name">{{info.nickname || '刷题用户'}}</div>
+          <div class="expire" :class="{warn:daysLeft<=7}">
+            {{info.expires_at ? (daysLeft>0 ? '有效期至 '+fmtDate(info.expires_at)+'（剩'+daysLeft+'天）' : '已过期，请续费') : ''}}
+          </div>
+        </div>
+        <div class="stats">
+          <div class="stat"><div class="num">{{stats.examCount||0}}</div><div class="lbl">考试次数</div></div>
+          <div class="stat"><div class="num">{{stats.avgScore||0}}</div><div class="lbl">平均分</div></div>
+          <div class="stat"><div class="num">{{stats.wrongCount||0}}</div><div class="lbl">错题数</div></div>
+        </div>
+        <div class="modes">
+          <button class="mode seq" @click="startPractice"><span class="mi">📝</span><span><div class="mt">顺序刷题</div><div class="md">逐题练习，即时查看答案</div></span></button>
+          <button class="mode exam" @click="startExam"><span class="mi">📋</span><span><div class="mt">考试模式</div><div class="md">模拟考试，提交后出分</div></span></button>
+          <button class="mode wrong" @click="state='wrongs'"><span class="mi">📌</span><span><div class="mt">错题本</div><div class="md">查看做错的题目</div></span></button>
+        </div>
+      </div>
+      <div class="bnav">
+        <button class="bi act" @click="goHome">🏠 首页</button>
+        <button class="bi" @click="state='examHistory'">📊 记录</button>
+        <button class="bi" @click="state='profile'">👤 我的</button>
+      </div>
+    </div>
+
+    <!-- Not activated -->
+    <div v-else-if="state==='home' && !info.activated">
+      <div class="nav">刷题小程序</div>
+      <div class="page">
+        <div class="login-box" style="padding-top:30px">
+          <div class="icon">🔑</div>
+          <h2>激活账号</h2>
+          <p>输入购买的序列号开始刷题</p>
+        </div>
+        <input class="input" v-model="code" placeholder="请输入序列号" @keyup.enter="activate" style="text-transform:uppercase;letter-spacing:2px" />
+        <button class="btn btn-primary mt-12" @click="activate" :disabled="!code||activating">{{activating?'激活中...':'立即激活'}}</button>
+        <div class="mt-20">
+          <div style="font-size:14px;color:#606266;font-weight:600;margin-bottom:12px">可用套餐</div>
+          <div v-for="p in packages" :key="p.id" class="pkg">
+            <div class="pn">{{p.name}} <span v-if="p.id===1" style="font-size:12px;color:#667eea">推荐</span></div>
+            <div class="pd">{{p.description}}</div>
+            <div class="pm"><span>📝 {{p.single_count+p.multi_count+p.judge_count}}题</span><span>📅 {{p.valid_days}}天</span></div>
+            <div class="pp">¥{{p.price}}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Practice -->
+    <div v-if="state==='practice'">
+      <div class="nav"><span class="back" @click="goHome">←</span> 顺序刷题</div>
+      <div v-if="pDone" class="page" style="text-align:center">
+        <div style="font-size:56px;margin-bottom:8px">🎉</div>
+        <h2>本轮刷题完成！</h2>
+        <p style="color:#909399;margin:8px 0 20px">错题已自动加入错题本</p>
+        <button class="btn btn-primary" @click="goHome">返回首页</button>
+      </div>
+      <div v-else-if="pQuestions.length" class="page">
+        <div class="pbar"><div class="fill" :style="{width:((pIdx+1)/pQuestions.length*100)+'%'}"></div></div>
+        <div class="qhead"><span>{{pIdx+1}} / {{pQuestions.length}}</span></div>
+        <div class="qtype" :class="pQ.type">{{tLabel(pQ.type)}}</div>
+        <div class="qtitle">{{pQ.title}}</div>
+        <div class="opts">
+          <button v-for="(v,k) in pOptions" :key="k" class="opt"
+            :class="{sel:pAnswer===k&&!pSub, correct:pSub&&k===pQ.answer, wrong:pSub&&pAnswer===k&&k!==pQ.answer}"
+            @click="selOption(k)">
+            <span class="ol">{{k}}</span><span>{{v}}</span>
+          </button>
+        </div>
+        <div v-if="pSub" class="feedback" :class="pOK?'ok':'err'">
+          <div style="font-weight:600;margin-bottom:4px">{{pOK?'正确！':'错误！正确答案是 '+pQ.answer}}</div>
+          <div v-if="pQ.analysis">{{pQ.analysis}}</div>
+        </div>
+        <div class="mt-20" style="display:flex;gap:12px">
+          <button v-if="!pSub" class="btn btn-primary" @click="submit" :disabled="!pAnswer">提交答案</button>
+          <button v-if="pSub" class="btn" :class="pMore?'btn-primary':'btn-outline'" @click="nextQ" style="flex:1">{{pMore?'下一题':'完成刷题'}}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Exam -->
+    <div v-if="state==='exam'">
+      <div class="nav"><span class="back" @click="goHome">←</span> 考试模式</div>
+      <div v-if="eSub" class="page" style="padding-bottom:80px">
+        <div class="result">
+          <div class="score" :class="eResult.passed?'pass':'fail'">{{eResult.score}}<small>分</small></div>
+          <h2>{{eResult.passed?'通过！':'未通过'}}</h2>
+          <div class="detail">
+            <div><div class="dnum" style="color:#67c23a">{{eResult.correctCount}}</div><div class="dlbl">正确</div></div>
+            <div><div class="dnum" style="color:#f56c6c">{{eResult.wrongCount}}</div><div class="dlbl">错误</div></div>
+            <div><div class="dnum" style="color:#909399">{{eResult.total}}</div><div class="dlbl">总题</div></div>
+          </div>
+        </div>
+        <button v-if="eWrongDetails.length" class="btn btn-outline" @click="eShow=!eShow">{{eShow?'收起':'查看详细答案'}}（{{eWrongDetails.length}}道错题）</button>
+        <div v-if="eShow" class="mt-20">
+          <div v-for="(a,i) in eWrongDetails" :key="i" class="acard">
+            <div class="at">{{i+1}}. {{a.title}}</div>
+            <div class="aa"><span class="your">你的答案：{{a.user_answer||'未作答'}}</span><span class="right"> | 正确答案：{{a.correct_answer}}</span></div>
+            <div v-if="a.analysis" style="font-size:13px;color:#606266;margin-top:4px">{{a.analysis}}</div>
+          </div>
+        </div>
+        <button class="btn btn-primary mt-20" @click="goHome">返回首页</button>
+      </div>
+      <div v-else class="page">
+        <div class="pbar"><div class="fill" :style="{width:((eIdx+1)/eQuestions.length*100)+'%'}"></div></div>
+        <div class="qhead"><span>{{eIdx+1}} / {{eQuestions.length}}</span></div>
+        <div class="qtype" :class="eQ.type">{{tLabel(eQ.type)}}</div>
+        <div class="qtitle">{{eQ.title}}</div>
+        <div class="opts">
+          <button v-for="(v,k) in eOptions" :key="k" class="opt" :class="{sel:eAnswers[eQ.id]===k}" @click="eAnswers[eQ.id]=k">
+            <span class="ol">{{k}}</span><span>{{v}}</span>
+          </button>
+        </div>
+        <div class="mt-20" style="display:flex;gap:12px">
+          <button v-if="eIdx>0" class="btn btn-outline" @click="eIdx--">上一题</button>
+          <button v-if="eMore" class="btn btn-primary" @click="eIdx++" style="flex:1">下一题</button>
+          <button v-if="eIsLast" class="btn btn-danger" @click="submitExam" style="flex:1">提交试卷</button>
+        </div>
+        <div class="mt-20" style="display:flex;flex-wrap:wrap;gap:6px">
+          <button v-for="(q,i) in eQuestions" :key="q.id" style="width:32px;height:32px;border-radius:50%;border:1px solid #dcdfe6;font-size:12px;cursor:pointer"
+            :style="{background:eAnswers[q.id]?'#667eea':'white',color:eAnswers[q.id]?'white':'#606266'}" @click="eIdx=i">{{i+1}}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Wrong Questions -->
+    <div v-if="state==='wrongs'">
+      <div class="nav"><span class="back" @click="goHome">←</span> 错题本</div>
+      <div class="page">
+        <div v-if="!wrongs.length" class="empty"><div class="ei">🎉</div><p>暂无错题，继续保持！</p></div>
+        <div v-for="w in wrongs" :key="w.wrong_id" class="witem">
+          <div class="wt">{{w.title}}</div>
+          <div class="wa">
+            <button class="btn btn-sm" style="background:#f0f2f5;color:#606266" @click="viewWrong(w)">查看</button>
+            <button class="btn btn-sm" style="background:#fef0f0;color:#f56c6c" @click="delWrong(w)">移除</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Wrong Detail -->
+    <div v-if="state==='wrongDetail'">
+      <div class="nav"><span class="back" @click="state='wrongs'">←</span> 题目详情</div>
+      <div class="page">
+        <div class="qtype mb-12" :class="wdQ.type">{{tLabel(wdQ.type)}}</div>
+        <div class="qtitle">{{wdQ.title}}</div>
+        <div class="opts">
+          <div v-for="(v,k) in wdOptions" :key="k" class="opt" :class="{correct:k===wdQ.answer}">
+            <span class="ol">{{k}}</span><span>{{v}}</span>
+          </div>
+        </div>
+        <div class="feedback ok mt-20">
+          <div style="font-weight:600;margin-bottom:4px">正确答案：{{wdQ.answer}}</div>
+          <div v-if="wdQ.analysis">{{wdQ.analysis}}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Exam History -->
+    <div v-if="state==='examHistory'">
+      <div class="nav"><span class="back" @click="goHome">←</span> 考试记录</div>
+      <div class="page">
+        <div v-if="!records.length" class="empty"><div class="ei">📋</div><p>暂无考试记录</p></div>
+        <div v-for="r in records" :key="r.id" class="witem" style="cursor:pointer" @click="viewRecord(r.id)">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <span :style="{display:'inline-block',padding:'2px 10px',borderRadius:'4px',fontSize:'12px',fontWeight:600,marginRight:'6px',background:r.passed?'#e8f5e9':'#fef0f0',color:r.passed?'#2e7d32':'#f56c6c'}">{{r.passed?'通过':'未通过'}}</span>
+              <span style="font-size:15px;font-weight:500">{{r.score}}分</span>
+              <span style="font-size:12px;color:#909399;margin-left:8px">{{r.correct_count}}/{{r.total}}</span>
+            </div>
+            <span style="font-size:12px;color:#c0c4cc">{{(r.created_at||'').substring(0,16)}}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Profile -->
+    <div v-if="state==='profile'">
+      <div class="nav"><span class="back" @click="goHome">←</span> 个人中心</div>
+      <div class="page">
+        <div class="witem"><span style="color:#909399">用户名</span><span style="float:right">{{info.nickname}}</span></div>
+        <div class="witem"><span style="color:#909399">套餐</span><span style="float:right">{{info.package?.name||'未激活'}}</span></div>
+        <div class="witem"><span style="color:#909399">激活时间</span><span style="float:right">{{info.activated_at||'-'}}</span></div>
+        <div class="witem"><span style="color:#909399">到期时间</span><span style="float:right;color:#f56c6c">{{info.expires_at||'-'}}</span></div>
+        <div class="witem"><span style="color:#909399">错题数</span><span style="float:right">{{stats.wrongCount||0}}</span></div>
+        <button class="btn btn-outline mt-20" @click="logout">退出登录</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = window.location.origin;
+const STORE = 'quiz_user_v2';
+
+const app = Vue.createApp({
+  data() {
+    return {
+      state: 'login',
+      nickname: '',
+      token: '',
+      info: {},
+      stats: {},
+      packages: [],
+      code: '',
+      activating: false,
+      msg: '',
+      msgTimer: null,
+
+      // Practice
+      pQuestions: [],
+      pIdx: 0,
+      pAnswer: '',
+      pSub: false,
+      pDone: false,
+
+      // Exam
+      eId: null,
+      eQuestions: [],
+      eIdx: 0,
+      eAnswers: {},
+      eSub: false,
+      eResult: {},
+      eShow: false,
+
+      // Wrong
+      wrongs: [],
+      wdQ: {},
+
+      // History cache
+      _records: []
+    };
+  },
+  computed: {
+    daysLeft() {
+      if (!this.info.expires_at) return 0;
+      return Math.max(0, Math.ceil((new Date(this.info.expires_at).getTime() - Date.now()) / 86400000));
+    },
+    pQ() { return this.pQuestions[this.pIdx] || {}; },
+    pOptions() { return this.getOpts(this.pQ); },
+    pOK() { return this.pSub && (this.pAnswer||'').toUpperCase().trim() === (this.pQ.answer||'').toUpperCase().trim(); },
+    pMore() { return this.pIdx < this.pQuestions.length - 1; },
+    eQ() { return this.eQuestions[this.eIdx] || {}; },
+    eOptions() { return this.getOpts(this.eQ); },
+    eMore() { return this.eIdx < this.eQuestions.length - 1; },
+    eIsLast() { return this.eIdx === this.eQuestions.length - 1; },
+    eWrongDetails() {
+      if (!this.eResult.answerDetails) return [];
+      return this.eResult.answerDetails.filter(a => !a.isCorrect);
+    },
+    records() { return this._records || []; },
+    wdOptions() { return this.getOpts(this.wdQ); }
+  },
+  methods: {
+    toast(t) {
+      clearTimeout(this.msgTimer);
+      this.msg = t;
+      this.msgTimer = setTimeout(() => this.msg = '', 2500);
+    },
+    fmtDate(d) { return new Date(d).toLocaleDateString('zh-CN'); },
+    tLabel(t) { return t==='single'?'单选题':t==='multi'?'多选题':'判断题'; },
+    getOpts(q) {
+      if (!q) return {};
+      if (q.type === 'judge') return { A: q.option_a||'正确', B: q.option_b||'错误' };
+      const o = {};
+      ['A','B','C','D','E','F'].forEach(k => { if (q['option_'+k.toLowerCase()]) o[k] = q['option_'+k.toLowerCase()]; });
+      return o;
+    },
+
+    async api(path, opts={}) {
+      const h = { ...opts.headers };
+      if (this.token) h['Authorization'] = 'Bearer ' + this.token;
+      const init = { ...opts, headers: h };
+      if (init.body && typeof init.body === 'object') {
+        init.body = JSON.stringify(init.body);
+        h['Content-Type'] = 'application/json';
+      }
+      return fetch(API + path, init).then(r => r.json());
+    },
+
+    async login() {
+      if (!this.nickname.trim()) return;
+      const oid = this.nickname.trim().toLowerCase().replace(/\s/g,'_') + '_quiz';
+      try {
+        const res = await this.api('/api/user/login', { method:'POST', body:{ openid: oid } });
+        this.token = res.token;
+        this.info = res;
+        localStorage.setItem(STORE, JSON.stringify({ openid: oid, token: res.token }));
+        this.state = 'home';
+        if (res.activated) { await this.loadStats(); await this.loadPkgs(); }
+        else { await this.loadPkgs(); }
+      } catch(e) { this.toast('登录失败'); }
+    },
+
+    logout() {
+      localStorage.removeItem(STORE);
+      this.token = ''; this.info = {}; this.stats = {}; this.state = 'login';
+    },
+
+    async loadStats() { try { this.stats = await this.api('/api/user/stats') || {}; } catch(e) {} },
+    async loadPkgs() { try { this.packages = await this.api('/api/user/packages') || []; } catch(e) {} },
+
+    async activate() {
+      if (!this.code.trim()) return;
+      this.activating = true;
+      try {
+        const res = await this.api('/api/user/activate', { method:'POST', body:{ openid: this.info.openid, code: this.code.trim() } });
+        if (res.success) {
+          Object.assign(this.info, res.user, { activated: true, expires_at: res.expires_at, package: res.package });
+          this.code = '';
+          this.toast('激活成功！');
+          await this.loadStats();
+        } else { this.toast(res.error||'激活失败'); }
+      } catch(e) { this.toast('激活失败'); }
+      finally { this.activating = false; }
+    },
+
+    goHome() {
+      this.state = 'home';
+      this.pDone = false; this.eSub = false;
+      this.loadStats();
+    },
+
+    // Practice
+    async startPractice() {
+      try {
+        const res = await this.api('/api/practice/questions');
+        if (res.error) { this.toast(res.error); return; }
+        this.pQuestions = res.questions || [];
+        this.pIdx = res.progress || 0;
+        this.pAnswer = ''; this.pSub = false; this.pDone = false;
+        this.state = 'practice';
+        if (this.pIdx >= this.pQuestions.length) this.pDone = true;
+      } catch(e) { this.toast('加载失败'); }
+    },
+    selOption(k) {
+      if (this.pSub) return;
+      if (this.pQ.type === 'multi') {
+        const cur = this.pAnswer||'';
+        this.pAnswer = cur.includes(k) ? cur.replace(k,'') : cur + k;
+        this.pAnswer = this.pAnswer.split('').sort().join('');
+      } else { this.pAnswer = k; }
+    },
+    async submit() {
+      if (!this.pAnswer) return;
+      try {
+        await this.api('/api/practice/answer', { method:'POST', body:{ question_id:this.pQ.id, user_answer:this.pAnswer } });
+        this.pSub = true;
+      } catch(e) { this.toast('提交失败'); }
+    },
+    nextQ() {
+      this.pIdx++; this.pAnswer = ''; this.pSub = false;
+      if (this.pIdx >= this.pQuestions.length) this.pDone = true;
+    },
+
+    // Exam
+    async startExam() {
+      try {
+        const res = await this.api('/api/exam/start', { method:'POST' });
+        if (res.error) { this.toast(res.error); return; }
+        this.eId = res.exam_id;
+        this.eQuestions = res.questions || [];
+        this.eIdx = 0; this.eAnswers = {}; this.eSub = false; this.eShow = false;
+        this.state = 'exam';
+      } catch(e) { this.toast('开始失败'); }
+    },
+    async submitExam() {
+      const answers = this.eQuestions.map(q => ({ question_id: q.id, user_answer: this.eAnswers[q.id]||'' }));
+      try {
+        const res = await this.api('/api/exam/submit', { method:'POST', body:{ exam_id: this.eId, answers } });
+        this.eResult = res; this.eSub = true;
+        await this.loadStats();
+      } catch(e) { this.toast('提交失败'); }
+    },
+
+    // Wrong
+    async loadWrongs() { try { this.wrongs = await this.api('/api/wrongs') || []; } catch(e) {} },
+    viewWrong(w) { this.wdQ = w; this.state = 'wrongDetail'; },
+    async delWrong(w) {
+      try { await this.api('/api/wrongs/'+w.wrong_id, { method:'DELETE' }); this.wrongs = this.wrongs.filter(q=>q.wrong_id!==w.wrong_id); await this.loadStats(); this.toast('已移除'); } catch(e) {}
+    },
+
+    // History
+    async loadRecords() { try { this._records = await this.api('/api/exam/records') || []; } catch(e) {} },
+    async viewRecord(id) {
+      try {
+        const r = await this.api('/api/exam/record/'+id);
+        if (r&&r.id) { this.eResult = r; this.eSub = true; this.eShow = true; this.state = 'exam'; }
+      } catch(e) { this.toast('获取失败'); }
+    },
+
+    // Restore session
+    async restore() {
+      const raw = localStorage.getItem(STORE);
+      if (!raw) { this.state = 'login'; return; }
+      try {
+        const { openid, token } = JSON.parse(raw);
+        if (!token) { this.state = 'login'; return; }
+        this.token = token;
+        const res = await this.api('/api/user/login', { method:'POST', body:{ openid } });
+        if (res.user) {
+          this.token = res.token;
+          this.info = res;
+          localStorage.setItem(STORE, JSON.stringify({ openid, token: res.token }));
+          this.state = 'home';
+          if (res.activated) await this.loadStats();
+          await this.loadPkgs();
+        } else { this.state = 'login'; }
+      } catch(e) { this.state = 'login'; }
+    }
+  },
+  watch: {
+    state(v) {
+      if (v==='wrongs') this.loadWrongs();
+      if (v==='examHistory') this.loadRecords();
+    }
+  }
+});
+
+app.mount('#app');
+</script>
+</body>
+</html>

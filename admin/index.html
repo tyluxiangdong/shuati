@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>刷题系统 - 后台管理</title>
+  <link rel="stylesheet" href="/element-plus.css">
+  <script src="/vue.global.prod.js"></script>
+  <script src="/element-plus.js"></script>
+  <script src="/element-plus-icons.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f7fa; }
+    .login-container { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .login-card { width: 420px; padding: 40px; background: #fff; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.15); }
+    .login-card h1 { text-align: center; font-size: 28px; color: #303133; margin-bottom: 8px; }
+    .login-card p { text-align: center; color: #909399; margin-bottom: 32px; font-size: 14px; }
+    .app-layout { display: flex; min-height: 100vh; }
+    .sidebar { width: 220px; background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%); color: #fff; padding: 0; flex-shrink: 0; }
+    .sidebar-header { padding: 24px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+    .sidebar-header h2 { font-size: 18px; font-weight: 600; margin: 0; }
+    .sidebar-header span { font-size: 12px; opacity: 0.6; }
+    .sidebar-menu { padding: 8px 0; }
+    .sidebar-menu .menu-item { padding: 14px 20px; cursor: pointer; display: flex; align-items: center; gap: 10px; font-size: 14px; transition: all 0.2s; color: rgba(255,255,255,0.7); border-left: 3px solid transparent; }
+    .sidebar-menu .menu-item:hover { background: rgba(255,255,255,0.05); color: #fff; }
+    .sidebar-menu .menu-item.active { background: rgba(102,126,234,0.2); color: #667eea; border-left-color: #667eea; font-weight: 600; }
+    .main-content { flex: 1; padding: 24px; overflow-y: auto; }
+    .page-header { margin-bottom: 20px; }
+    .page-header h2 { font-size: 22px; color: #303133; margin: 0; }
+    .page-header p { font-size: 13px; color: #909399; margin: 4px 0 0; }
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .stat-card { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+    .stat-card .label { font-size: 13px; color: #909399; margin-bottom: 8px; }
+    .stat-card .value { font-size: 28px; font-weight: 600; color: #303133; }
+    .stat-card.primary .value { color: #667eea; }
+    .stat-card.success .value { color: #67c23a; }
+    .stat-card.warning .value { color: #e6a23c; }
+    .stat-card.danger .value { color: #f56c6c; }
+    .el-table .cell { display: flex; align-items: center; }
+    .tag { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 12px; font-weight: 500; }
+    .tag-success { background: #e8f5e9; color: #2e7d32; }
+    .tag-warning { background: #fff3e0; color: #e65100; }
+    .tag-info { background: #e3f2fd; color: #1565c0; }
+    .tag-danger { background: #ffebee; color: #c62828; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <!-- Login -->
+  <div v-if="!token" class="login-container">
+    <div class="login-card">
+      <h1>刷题管理系统</h1>
+      <p>题库管理后台</p>
+      <el-form :model="loginForm" label-width="0">
+        <el-form-item><el-input v-model="loginForm.username" placeholder="用户名" size="large" prefix-icon="User" clearable /></el-form-item>
+        <el-form-item><el-input v-model="loginForm.password" type="password" placeholder="密码" size="large" prefix-icon="Lock" show-password @keyup.enter="doLogin" /></el-form-item>
+        <el-form-item><el-button type="primary" size="large" style="width:100%" @click="doLogin" :loading="loginLoading">登 录</el-button></el-form-item>
+        <p style="text-align:center;color:#c0c4cc;font-size:12px;margin-top:8px">默认账号: admin / admin-quiz-2024</p>
+      </el-form>
+    </div>
+  </div>
+
+  <!-- Main Layout -->
+  <div v-else class="app-layout">
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <h2>刷题管理</h2>
+        <span>v1.0 后台系统</span>
+      </div>
+      <div class="sidebar-menu">
+        <div class="menu-item" :class="{active:currentMenu==='dashboard'}" @click="currentMenu='dashboard'">
+          <span>📊</span> 仪表盘
+        </div>
+        <div class="menu-item" :class="{active:currentMenu==='packages'}" @click="currentMenu='packages'">
+          <span>📦</span> 套餐管理
+        </div>
+        <div class="menu-item" :class="{active:currentMenu==='questions'}" @click="currentMenu='questions'">
+          <span>📝</span> 题库管理
+        </div>
+        <div class="menu-item" :class="{active:currentMenu==='serials'}" @click="currentMenu='serials'">
+          <span>🔑</span> 序列号管理
+        </div>
+        <div class="menu-item" :class="{active:currentMenu==='users'}" @click="currentMenu='users'">
+          <span>👥</span> 用户管理
+        </div>
+      </div>
+      <div style="position:absolute;bottom:20px;left:0;width:220px;text-align:center">
+        <el-button text style="color:rgba(255,255,255,0.5)" @click="doLogout">退出登录</el-button>
+      </div>
+    </div>
+    <div class="main-content">
+      <!-- Dashboard -->
+      <div v-if="currentMenu==='dashboard'">
+        <div class="page-header"><h2>仪表盘</h2><p>系统运行数据概览</p></div>
+        <div class="stat-grid">
+          <div class="stat-card primary"><div class="label">题库总数</div><div class="value">{{stats.totalQuestions}}</div></div>
+          <div class="stat-card"><div class="label">激活用户</div><div class="value">{{stats.totalUsers}}</div></div>
+          <div class="stat-card success"><div class="label">已用序列号</div><div class="value">{{stats.usedSerials}}</div></div>
+          <div class="stat-card warning"><div class="label">未用序列号</div><div class="value">{{stats.unusedSerials}}</div></div>
+          <div class="stat-card"><div class="label">考试总次数</div><div class="value">{{stats.totalExams}}</div></div>
+          <div class="stat-card success"><div class="label">今日考试</div><div class="value">{{stats.todayExams}}</div></div>
+        </div>
+        <div class="stat-grid">
+          <div class="stat-card"><div class="label">单选题</div><div class="value" style="font-size:22px">{{stats.singleCount}}</div></div>
+          <div class="stat-card"><div class="label">多选题</div><div class="value" style="font-size:22px">{{stats.multiCount}}</div></div>
+          <div class="stat-card"><div class="label">判断题</div><div class="value" style="font-size:22px">{{stats.judgeCount}}</div></div>
+          <div class="stat-card"><div class="label">套餐数</div><div class="value" style="font-size:22px">{{stats.totalPackages}}</div></div>
+        </div>
+      </div>
+
+      <!-- Packages -->
+      <div v-if="currentMenu==='packages'">
+        <div class="page-header">
+          <h2>套餐管理</h2>
+          <p>配置不同的刷题套餐，设置各题型数量和有效期</p>
+        </div>
+        <div style="margin-bottom:16px">
+          <el-button type="primary" @click="showPkgDialog=true;editingPkg=null">新增套餐</el-button>
+        </div>
+        <el-table :data="packages" border stripe style="width:100%">
+          <el-table-column prop="name" label="套餐名称" width="140" />
+          <el-table-column prop="description" label="说明" min-width="200" />
+          <el-table-column label="单选题" width="80"><template #default="s">{{s.row.single_count}}</template></el-table-column>
+          <el-table-column label="多选题" width="80"><template #default="s">{{s.row.multi_count}}</template></el-table-column>
+          <el-table-column label="判断题" width="80"><template #default="s">{{s.row.judge_count}}</template></el-table-column>
+          <el-table-column label="有效期(天)" width="100"><template #default="s">{{s.row.valid_days}}天</template></el-table-column>
+          <el-table-column label="价格" width="100"><template #default="s">¥{{s.row.price}}</template></el-table-column>
+          <el-table-column label="及格分" width="80"><template #default="s">{{s.row.pass_score}}</template></el-table-column>
+          <el-table-column label="操作" width="150" fixed="right">
+            <template #default="s">
+              <el-button size="small" @click="editPkg(s.row)">编辑</el-button>
+              <el-button size="small" type="danger" @click="deletePkg(s.row.id)">删除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <!-- Package Dialog -->
+        <el-dialog v-model="showPkgDialog" :title="editingPkg?'编辑套餐':'新增套餐'" width="520px">
+          <el-form :model="pkgForm" label-width="100px">
+            <el-form-item label="套餐名称"><el-input v-model="pkgForm.name" placeholder="如：基础刷题包" /></el-form-item>
+            <el-form-item label="套餐说明"><el-input v-model="pkgForm.description" type="textarea" :rows="2" /></el-form-item>
+            <el-form-item label="单选题数"><el-input-number v-model="pkgForm.single_count" :min="0" :max="500" /></el-form-item>
+            <el-form-item label="多选题数"><el-input-number v-model="pkgForm.multi_count" :min="0" :max="500" /></el-form-item>
+            <el-form-item label="判断题数"><el-input-number v-model="pkgForm.judge_count" :min="0" :max="500" /></el-form-item>
+            <el-form-item label="有效期(天)"><el-input-number v-model="pkgForm.valid_days" :min="1" :max="3650" /></el-form-item>
+            <el-form-item label="价格(元)"><el-input-number v-model="pkgForm.price" :min="0" :precision="2" /></el-form-item>
+            <el-form-item label="及格分数"><el-input-number v-model="pkgForm.pass_score" :min="0" :max="100" /></el-form-item>
+            <el-form-item label="考试时间(分钟)"><el-input-number v-model="pkgForm.exam_time" :min="0" :max="300" /><span style="margin-left:8px;color:#909399;font-size:12px">0=不限时</span></el-form-item>
+          </el-form>
+          <template #footer>
+            <el-button @click="showPkgDialog=false">取消</el-button>
+            <el-button type="primary" @click="savePkg" :loading="saving">保存</el-button>
+          </template>
+        </el-dialog>
+      </div>
+
+      <!-- Questions -->
+      <div v-if="currentMenu==='questions'">
+        <div class="page-header"><h2>题库管理</h2><p>管理所有题目，支持批量导入和手动添加</p></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+          <div style="display:flex;gap:8px;align-items:center">
+            <el-button type="primary" @click="showQDialog=true;editingQ=null">添加题目</el-button>
+            <el-upload :show-file-list="false" :before-upload="importExcel" accept=".xlsx,.xls">
+              <el-button type="success">📥 Excel批量导入</el-button>
+            </el-upload>
+            <el-button @click="downloadTemplate">📋 下载模板</el-button>
+            <el-button type="danger" plain @click="batchDeleteQ" :disabled="!selectQIds.length">批量删除 ({{selectQIds.length}})</el-button>
+          </div>
+          <div style="display:flex;gap:8px">
+            <el-select v-model="filterType" placeholder="题型筛选" clearable style="width:130px" @change="loadQuestions">
+              <el-option label="单选题" value="single" /><el-option label="多选题" value="multi" /><el-option label="判断题" value="judge" />
+            </el-select>
+            <el-input v-model="filterKeyword" placeholder="搜索题目..." clearable style="width:200px" @clear="loadQuestions" @keyup.enter="loadQuestions">
+              <template #append><el-button @click="loadQuestions">搜索</el-button></template>
+            </el-input>
+          </div>
+        </div>
+        <el-table :data="questions" border stripe style="width:100%" @selection-change="onQSelect" ref="qTable">
+          <el-table-column type="selection" width="40" />
+          <el-table-column prop="id" label="ID" width="60" />
+          <el-table-column label="题型" width="80">
+            <template #default="s">
+              <span class="tag" :class="s.row.type==='single'?'tag-success':s.row.type==='multi'?'tag-warning':'tag-info'">
+                {{s.row.type==='single'?'单选':s.row.type==='multi'?'多选':'判断'}}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="title" label="题干" min-width="250" show-overflow-tooltip />
+          <el-table-column prop="answer" label="答案" width="70" />
+          <el-table-column label="操作" width="140" fixed="right">
+            <template #default="s">
+              <el-button size="small" @click="editQ(s.row)">编辑</el-button>
+              <el-button size="small" type="danger" @click="deleteQ(s.row.id)">删除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+        <div style="margin-top:12px;text-align:right">
+          <el-pagination background layout="prev,pager,next,total" :total="qTotal" :page-size="qPageSize" v-model:current-page="qPage" @current-change="loadQuestions" />
+        </div>
+
+        <!-- Question Dialog -->
+        <el-dialog v-model="showQDialog" :title="editingQ?'编辑题目':'添加题目'" width="640px">
+          <el-form :model="qForm" label-width="90px">
+            <el-form-item label="题型"><el-select v-model="qForm.type"><el-option label="单选题" value="single" /><el-option label="多选题" value="multi" /><el-option label="判断题" value="judge" /></el-select></el-form-item>
+            <el-form-item label="题干"><el-input v-model="qForm.title" type="textarea" :rows="3" /></el-form-item>
+            <el-form-item label="选项A"><el-input v-model="qForm.option_a" /></el-form-item>
+            <el-form-item label="选项B"><el-input v-model="qForm.option_b" /></el-form-item>
+            <el-form-item v-if="qForm.type!=='judge'" label="选项C"><el-input v-model="qForm.option_c" /></el-form-item>
+            <el-form-item v-if="qForm.type!=='judge'" label="选项D"><el-input v-model="qForm.option_d" /></el-form-item>
+            <el-form-item v-if="qForm.type==='multi'" label="选项E"><el-input v-model="qForm.option_e" /></el-form-item>
+            <el-form-item v-if="qForm.type==='multi'" label="选项F"><el-input v-model="qForm.option_f" /></el-form-item>
+            <el-form-item label="正确答案"><el-input v-model="qForm.answer" :placeholder="qForm.type==='multi'?'如：ABC':'如：A'" /></el-form-item>
+            <el-form-item label="解析"><el-input v-model="qForm.analysis" type="textarea" :rows="2" /></el-form-item>
+          </el-form>
+          <template #footer>
+            <el-button @click="showQDialog=false">取消</el-button>
+            <el-button type="primary" @click="saveQ" :loading="saving">保存</el-button>
+          </template>
+        </el-dialog>
+      </div>
+
+      <!-- Serials -->
+      <div v-if="currentMenu==='serials'">
+        <div class="page-header"><h2>序列号管理</h2><p>生成和管理激活序列号</p></div>
+        <div style="display:flex;gap:8px;margin-bottom:16px;align-items:center;flex-wrap:wrap">
+          <el-button type="primary" @click="showSerialDialog=true">生成序列号</el-button>
+          <el-button @click="exportSerials">📥 导出Excel</el-button>
+          <el-select v-model="serialStatus" placeholder="状态筛选" clearable style="width:130px" @change="loadSerials">
+            <el-option label="未使用" value="unused" /><el-option label="已使用" value="used" /><el-option label="已过期" value="expired" />
+          </el-select>
+          <el-input v-model="serialKeyword" placeholder="搜索序列号..." clearable style="width:200px" @keyup.enter="loadSerials">
+            <template #append><el-button @click="loadSerials">搜索</el-button></template>
+          </el-input>
+        </div>
+        <el-table :data="serials" border stripe style="width:100%">
+          <el-table-column prop="code" label="序列号" width="200">
+            <template #default="s"><code style="background:#f0f2f5;padding:2px 8px;border-radius:4px;font-size:13px">{{s.row.code}}</code></template>
+          </el-table-column>
+          <el-table-column prop="package_name" label="套餐" width="120" />
+          <el-table-column label="状态" width="90">
+            <template #default="s">
+              <span class="tag" :class="s.row.status==='unused'?'tag-success':s.row.status==='used'?'tag-warning':'tag-danger'">
+                {{s.row.status==='unused'?'未使用':s.row.status==='used'?'已使用':'已过期'}}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column label="激活时间" width="170"><template #default="s">{{s.row.activated_at||'-'}}</template></el-table-column>
+          <el-table-column label="过期时间" width="170"><template #default="s">{{s.row.expires_at||'-'}}</template></el-table-column>
+          <el-table-column label="创建时间" width="170"><template #default="s">{{s.row.created_at}}</template></el-table-column>
+          <el-table-column label="操作" width="100" fixed="right">
+            <template #default="s">
+              <el-button v-if="s.row.status==='unused'" size="small" type="danger" @click="deactivateSerial(s.row.id)">作废</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+        <div style="margin-top:12px;text-align:right">
+          <el-pagination background layout="prev,pager,next,total" :total="sTotal" :page-size="sPageSize" v-model:current-page="sPage" @current-change="loadSerials" />
+        </div>
+
+        <!-- Generate Serial Dialog -->
+        <el-dialog v-model="showSerialDialog" title="生成序列号" width="450px">
+          <el-form :model="serialForm" label-width="90px">
+            <el-form-item label="选择套餐">
+              <el-select v-model="serialForm.package_id" placeholder="请选择套餐">
+                <el-option v-for="p in packages" :key="p.id" :label="p.name" :value="p.id" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="生成数量"><el-input-number v-model="serialForm.count" :min="1" :max="1000" /></el-form-item>
+          </el-form>
+          <template #footer>
+            <el-button @click="showSerialDialog=false">取消</el-button>
+            <el-button type="primary" @click="generateSerials" :loading="saving">生成</el-button>
+          </template>
+        </el-dialog>
+
+        <!-- Generated Codes Dialog -->
+        <el-dialog v-model="showCodesDialog" title="生成的序列号" width="500px">
+          <p style="color:#67c23a;margin-bottom:12px">成功生成 {{generatedCodes.length}} 个序列号，请妥善保存：</p>
+          <div style="max-height:300px;overflow-y:auto;background:#f8f9fa;padding:12px;border-radius:8px;font-family:monospace;font-size:13px;line-height:2">
+            <div v-for="(c,i) in generatedCodes" :key="i">{{c}}</div>
+          </div>
+          <template #footer>
+            <el-button @click="showCodesDialog=false">关闭</el-button>
+            <el-button type="primary" @click="copyCodes">复制全部</el-button>
+          </template>
+        </el-dialog>
+      </div>
+
+      <!-- Users -->
+      <div v-if="currentMenu==='users'">
+        <div class="page-header"><h2>用户管理</h2><p>查看已激活的用户信息</p></div>
+        <el-table :data="users" border stripe style="width:100%">
+          <el-table-column label="ID" width="60"><template #default="s">{{s.row.id}}</template></el-table-column>
+          <el-table-column prop="nickname" label="昵称" width="120" />
+          <el-table-column prop="package_name" label="套餐" width="120" />
+          <el-table-column label="序列号" width="200">
+            <template #default="s"><code style="background:#f0f2f5;padding:2px 8px;border-radius:4px;font-size:12px">{{s.row.serial_code||'-'}}</code></template>
+          </el-table-column>
+          <el-table-column label="激活时间" width="170"><template #default="s">{{s.row.activated_at||'-'}}</template></el-table-column>
+          <el-table-column label="到期时间" width="170">
+            <template #default="s">
+              <span :style="{color:new Date(s.row.expires_at)<new Date()?'#f56c6c':'#303133'}">{{s.row.expires_at||'-'}}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="状态" width="90">
+            <template #default="s">
+              <span class="tag" :class="new Date(s.row.expires_at)>new Date()?'tag-success':'tag-danger'">
+                {{new Date(s.row.expires_at)>new Date()?'有效':'已过期'}}
+              </span>
+            </template>
+          </el-table-column>
+        </el-table>
+        <div style="margin-top:12px;text-align:right">
+          <el-pagination background layout="prev,pager,next,total" :total="uTotal" :page-size="uPageSize" v-model:current-page="uPage" @current-change="loadUsers" />
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const { createApp } = Vue;
+const API = 'http://localhost:3000';
+
+const app = createApp({
+  data() {
+    return {
+      token: localStorage.getItem('admin_token') || '',
+      currentMenu: 'dashboard',
+      loginForm: { username: 'admin', password: '' },
+      loginLoading: false,
+      saving: false,
+
+      // Stats
+      stats: {},
+
+      // Packages
+      packages: [],
+      showPkgDialog: false,
+      editingPkg: null,
+      pkgForm: { name: '', description: '', single_count: 20, multi_count: 5, judge_count: 5, valid_days: 365, exam_total: 50, pass_score: 60, exam_time: 0, price: 0 },
+
+      // Questions
+      questions: [],
+      qTotal: 0, qPage: 1, qPageSize: 10,
+      filterType: '', filterKeyword: '',
+      selectQIds: [],
+      showQDialog: false,
+      editingQ: null,
+      qForm: { type: 'single', title: '', option_a: '', option_b: '', option_c: '', option_d: '', option_e: '', option_f: '', answer: '', analysis: '' },
+
+      // Serials
+      serials: [],
+      sTotal: 0, sPage: 1, sPageSize: 20,
+      serialStatus: '', serialKeyword: '',
+      showSerialDialog: false,
+      serialForm: { package_id: null, count: 10 },
+      showCodesDialog: false,
+      generatedCodes: [],
+
+      // Users
+      users: [],
+      uTotal: 0, uPage: 1, uPageSize: 20,
+    };
+  },
+  mounted() {
+    if (this.token) {
+      this.loadStats();
+      this.loadPackages();
+    }
+  },
+  methods: {
+    api(path, opts = {}) {
+      const headers = { ...(opts.headers || {}) };
+      if (this.token) headers['Authorization'] = 'Bearer ' + this.token;
+      const init = { ...opts, headers };
+      if (init.body && typeof init.body === 'object') {
+        init.body = JSON.stringify(init.body);
+        headers['Content-Type'] = 'application/json';
+      }
+      return fetch(API + path, init).then(r => r.json());
+    },
+
+    async doLogin() {
+      this.loginLoading = true;
+      try {
+        const res = await this.api('/api/admin/login', { method: 'POST', body: this.loginForm });
+        if (res.token) {
+          this.token = res.token;
+          localStorage.setItem('admin_token', res.token);
+          this.loadStats();
+          this.loadPackages();
+        } else {
+          ElementPlus.ElMessage.error(res.error || '登录失败');
+        }
+      } catch(e) {
+        ElementPlus.ElMessage.error('网络错误');
+      } finally {
+        this.loginLoading = false;
+      }
+    },
+
+    doLogout() {
+      localStorage.removeItem('admin_token');
+      this.token = '';
+    },
+
+    async loadStats() {
+      const res = await this.api('/api/admin/stats');
+      if (res.totalQuestions !== undefined) this.stats = res;
+    },
+
+    // Packages
+    async loadPackages() { this.packages = await this.api('/api/packages') || []; },
+    editPkg(pkg) {
+      this.editingPkg = pkg;
+      this.pkgForm = { name: pkg.name, description: pkg.description, single_count: pkg.single_count, multi_count: pkg.multi_count, judge_count: pkg.judge_count, valid_days: pkg.valid_days, exam_total: pkg.exam_total, pass_score: pkg.pass_score, exam_time: pkg.exam_time, price: pkg.price };
+      this.showPkgDialog = true;
+    },
+    async savePkg() {
+      this.saving = true;
+      try {
+        if (this.editingPkg) {
+          await this.api('/api/packages/' + this.editingPkg.id, { method: 'PUT', body: this.pkgForm });
+        } else {
+          await this.api('/api/packages', { method: 'POST', body: this.pkgForm });
+        }
+        this.showPkgDialog = false;
+        this.loadPackages();
+        this.loadStats();
+        ElementPlus.ElMessage.success('保存成功');
+      } catch(e) {
+        ElementPlus.ElMessage.error('保存失败');
+      } finally { this.saving = false; }
+    },
+    async deletePkg(id) {
+      try {
+        await ElementPlus.ElMessageBox.confirm('确定删除该套餐？', '确认', { type: 'warning' });
+        await this.api('/api/packages/' + id, { method: 'DELETE' });
+        this.loadPackages();
+        this.loadStats();
+        ElementPlus.ElMessage.success('已删除');
+      } catch(e) {}
+    },
+
+    // Questions
+    async loadQuestions() {
+      const params = new URLSearchParams({ page: this.qPage, pageSize: this.qPageSize });
+      if (this.filterType) params.set('type', this.filterType);
+      if (this.filterKeyword) params.set('keyword', this.filterKeyword);
+      const res = await this.api('/api/questions?' + params);
+      this.questions = res.questions || [];
+      this.qTotal = res.total || 0;
+    },
+    onQSelect(selection) { this.selectQIds = selection.map(s => s.id); },
+    editQ(q) {
+      this.editingQ = q;
+      this.qForm = { type: q.type, title: q.title, option_a: q.option_a, option_b: q.option_b, option_c: q.option_c, option_d: q.option_d, option_e: q.option_e, option_f: q.option_f, answer: q.answer, analysis: q.analysis };
+      this.showQDialog = true;
+    },
+    async saveQ() {
+      this.saving = true;
+      try {
+        if (this.editingQ) {
+          await this.api('/api/questions/' + this.editingQ.id, { method: 'PUT', body: this.qForm });
+        } else {
+          await this.api('/api/questions', { method: 'POST', body: this.qForm });
+        }
+        this.showQDialog = false;
+        this.loadQuestions();
+        this.loadStats();
+        ElementPlus.ElMessage.success('保存成功');
+      } catch(e) {
+        ElementPlus.ElMessage.error('保存失败');
+      } finally { this.saving = false; }
+    },
+    async deleteQ(id) {
+      try {
+        await ElementPlus.ElMessageBox.confirm('确定删除该题目？', '确认', { type: 'warning' });
+        await this.api('/api/questions/' + id, { method: 'DELETE' });
+        this.loadQuestions();
+        this.loadStats();
+        ElementPlus.ElMessage.success('已删除');
+      } catch(e) {}
+    },
+    async batchDeleteQ() {
+      try {
+        await ElementPlus.ElMessageBox.confirm(`确定删除选中的 ${this.selectQIds.length} 道题？`, '批量删除确认', { type: 'warning' });
+        await this.api('/api/questions/batch-delete', { method: 'POST', body: { ids: this.selectQIds } });
+        this.selectQIds = [];
+        this.loadQuestions();
+        this.loadStats();
+        ElementPlus.ElMessage.success('批量删除成功');
+      } catch(e) {}
+    },
+    async importExcel(file) {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await this.api('/api/questions/import', { method: 'POST', body: fd, headers: { 'Content-Type': undefined } });
+      if (res.success) {
+        ElementPlus.ElMessage.success(`成功导入 ${res.imported} 题，${res.errors} 条失败`);
+        this.loadQuestions();
+        this.loadStats();
+      } else {
+        ElementPlus.ElMessage.error(res.error || '导入失败');
+      }
+      return false;
+    },
+    downloadTemplate() {
+      window.open(API + '/api/questions/template', '_blank');
+    },
+
+    // Serials
+    async loadSerials() {
+      const params = new URLSearchParams({ page: this.sPage, pageSize: this.sPageSize });
+      if (this.serialStatus) params.set('status', this.serialStatus);
+      if (this.serialKeyword) params.set('keyword', this.serialKeyword);
+      const res = await this.api('/api/serials?' + params);
+      this.serials = res.serials || [];
+      this.sTotal = res.total || 0;
+    },
+    async generateSerials() {
+      this.saving = true;
+      try {
+        const res = await this.api('/api/serials/generate', { method: 'POST', body: this.serialForm });
+        if (res.success) {
+          this.generatedCodes = res.codes;
+          this.showSerialDialog = false;
+          this.showCodesDialog = true;
+          this.loadSerials();
+          this.loadStats();
+        } else {
+          ElementPlus.ElMessage.error(res.error);
+        }
+      } catch(e) {
+        ElementPlus.ElMessage.error('生成失败');
+      } finally { this.saving = false; }
+    },
+    async deactivateSerial(id) {
+      try {
+        await ElementPlus.ElMessageBox.confirm('确定作废该序列号？', '确认', { type: 'warning' });
+        await this.api('/api/serials/' + id, { method: 'PUT', body: { status: 'expired' } });
+        this.loadSerials();
+        this.loadStats();
+        ElementPlus.ElMessage.success('已作废');
+      } catch(e) {}
+    },
+    async exportSerials() {
+      window.open(API + '/api/serials/export', '_blank');
+    },
+    copyCodes() {
+      navigator.clipboard.writeText(this.generatedCodes.join('\n'));
+      ElementPlus.ElMessage.success('已复制到剪贴板');
+    },
+
+    // Users
+    async loadUsers() {
+      const params = new URLSearchParams({ page: this.uPage, pageSize: this.uPageSize });
+      const res = await this.api('/api/users?' + params);
+      this.users = res.users || [];
+      this.uTotal = res.total || 0;
+    },
+  },
+  watch: {
+    currentMenu(v) {
+      if (v === 'dashboard') this.loadStats();
+      else if (v === 'packages') this.loadPackages();
+      else if (v === 'questions') this.loadQuestions();
+      else if (v === 'serials') this.loadSerials();
+      else if (v === 'users') this.loadUsers();
+    }
+  }
+});
+
+for (const [key, comp] of Object.entries(ElementPlusIconsVue)) {
+  app.component(key, comp);
+}
+app.use(ElementPlus);
+app.mount('#app');
+</script>
+</body>
+</html>
