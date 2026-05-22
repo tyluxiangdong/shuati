@@ -6,7 +6,7 @@ const { ok, fail } = require('../utils/response');
 
 const router = express.Router();
 
-// 开始考试
+// 开始考试 - 从 exam_config 读取配参
 router.post('/start', userAuth, (req, res, next) => {
   try {
     const db = getDb();
@@ -14,16 +14,16 @@ router.post('/start', userAuth, (req, res, next) => {
     if (!user.package_id) return res.status(403).json(fail('请先激活序列号', 40300));
     if (user.expires_at && new Date(user.expires_at) < new Date()) return res.status(403).json(fail('账号已过期', 40300));
 
-    const pkg = db.prepare('SELECT * FROM packages WHERE id = ?').get(user.package_id);
+    const examConfig = db.prepare('SELECT * FROM exam_config WHERE id = 1').get();
 
-    const singleQs = db.prepare('SELECT * FROM questions WHERE type = ? ORDER BY RANDOM() LIMIT ?').all('single', pkg.single_count);
-    const multiQs = db.prepare('SELECT * FROM questions WHERE type = ? ORDER BY RANDOM() LIMIT ?').all('multi', pkg.multi_count);
-    const judgeQs = db.prepare('SELECT * FROM questions WHERE type = ? ORDER BY RANDOM() LIMIT ?').all('judge', pkg.judge_count);
+    const singleQs = db.prepare('SELECT * FROM questions WHERE type = ? ORDER BY RANDOM() LIMIT ?').all('single', examConfig.single_count);
+    const multiQs = db.prepare('SELECT * FROM questions WHERE type = ? ORDER BY RANDOM() LIMIT ?').all('multi', examConfig.multi_count);
+    const judgeQs = db.prepare('SELECT * FROM questions WHERE type = ? ORDER BY RANDOM() LIMIT ?').all('judge', examConfig.judge_count);
 
     const allQs = [...singleQs, ...multiQs, ...judgeQs].sort(() => Math.random() - 0.5);
 
-    const result = db.prepare('INSERT INTO exam_records (user_id, package_id, total) VALUES (?, ?, ?)')
-      .run(user.id, pkg.id, allQs.length);
+    const result = db.prepare('INSERT INTO exam_records (user_id, total) VALUES (?, ?)')
+      .run(user.id, allQs.length);
 
     res.json(ok({
       exam_id: result.lastInsertRowid,
@@ -34,8 +34,8 @@ router.post('/start', userAuth, (req, res, next) => {
         option_e: q.option_e, option_f: q.option_f,
       })),
       total: allQs.length,
-      pass_score: pkg.pass_score,
-      time_limit: pkg.exam_time,
+      pass_score: examConfig.pass_score,
+      time_limit: examConfig.exam_time,
     }));
   } catch (e) { next(e); }
 });
@@ -80,7 +80,8 @@ router.post('/submit', userAuth, validate({
     }
 
     const score = exam.total > 0 ? Math.round((correctCount / exam.total) * 100) : 0;
-    const passScore = db.prepare('SELECT pass_score FROM packages WHERE id = ?').get(exam.package_id)?.pass_score || 60;
+    const examConfig = db.prepare('SELECT pass_score FROM exam_config WHERE id = 1').get();
+    const passScore = examConfig?.pass_score || 60;
     const passed = score >= passScore ? 1 : 0;
 
     db.prepare('UPDATE exam_records SET score=?, correct_count=?, wrong_count=?, answers=?, passed=? WHERE id=?')
@@ -97,7 +98,7 @@ router.get('/records', userAuth, (req, res, next) => {
   try {
     const db = getDb();
     const records = db.prepare(
-      'SELECT e.*, p.name as package_name FROM exam_records e LEFT JOIN packages p ON e.package_id = p.id WHERE e.user_id = ? ORDER BY e.id DESC LIMIT 20'
+      'SELECT * FROM exam_records WHERE user_id = ? ORDER BY id DESC LIMIT 20'
     ).all(req.user.id);
     res.json(ok(records));
   } catch (e) { next(e); }

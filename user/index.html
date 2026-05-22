@@ -155,7 +155,9 @@
           <div class="stat"><div class="num">{{stats.wrongCount||0}}</div><div class="lbl">错题数</div></div>
         </div>
         <div class="modes">
-          <button class="mode seq" @click="startPractice"><span class="mi">📝</span><span><div class="mt">顺序刷题</div><div class="md">逐题练习，即时查看答案</div></span></button>
+          <button class="mode seq" @click="startPractice('single')"><span class="mi">📝</span><span><div class="mt">单选题练习</div><div class="md">顺序练习单选题</div></span></button>
+          <button class="mode seq" style="background:linear-gradient(135deg,#fff3e0,#ffe0b2)" @click="startPractice('multi')"><span class="mi">🔲</span><span><div class="mt">多选题练习</div><div class="md">顺序练习多选题</div></span></button>
+          <button class="mode seq" style="background:linear-gradient(135deg,#e3f2fd,#bbdefb)" @click="startPractice('judge')"><span class="mi">✅</span><span><div class="mt">判断题练习</div><div class="md">顺序练习判断题</div></span></button>
           <button class="mode exam" @click="startExam"><span class="mi">📋</span><span><div class="mt">考试模式</div><div class="md">模拟考试，提交后出分</div></span></button>
           <button class="mode wrong" @click="state='wrongs'"><span class="mi">📌</span><span><div class="mt">错题本</div><div class="md">查看做错的题目</div></span></button>
         </div>
@@ -182,9 +184,8 @@
           <div style="font-size:14px;color:#606266;font-weight:600;margin-bottom:12px">可用套餐</div>
           <div v-for="p in packages" :key="p.id" class="pkg">
             <div class="pn">{{p.name}} <span v-if="p.id===1" style="font-size:12px;color:#667eea">推荐</span></div>
-            <div class="pd">{{p.description}}</div>
-            <div class="pm"><span>📝 {{p.single_count+p.multi_count+p.judge_count}}题</span><span>📅 {{p.valid_days}}天</span></div>
-            <div class="pp">¥{{p.price}}</div>
+            <div class="pd" style="white-space:pre-line">{{p.description}}</div>
+            <div class="pm"><span>📅 {{p.valid_days}}天</span><span>💰 ¥{{p.price}}</span></div>
           </div>
         </div>
       </div>
@@ -192,7 +193,7 @@
 
     <!-- Practice -->
     <div v-if="state==='practice'">
-      <div class="nav"><span class="back" @click="goHome">←</span> 顺序刷题</div>
+      <div class="nav"><span class="back" @click="goHome">←</span> {{pTypeLabel}}练习</div>
       <div v-if="pDone" class="page" style="text-align:center">
         <div style="font-size:56px;margin-bottom:8px">🎉</div>
         <h2>本轮刷题完成！</h2>
@@ -389,6 +390,7 @@ const app = Vue.createApp({
       msgTimer: null,
 
       // Practice
+      pType: 'single',
       pQuestions: [],
       pIdx: 0,
       pAnswer: '',
@@ -427,6 +429,7 @@ const app = Vue.createApp({
     },
     pQ() { return this.pQuestions[this.pIdx] || {}; },
     pOptions() { return this.getOpts(this.pQ); },
+    pTypeLabel() { return this.pType==='single'?'单选':this.pType==='multi'?'多选':'判断'; },
     pOK() { return this.pSub && (this.pAnswer||'').toUpperCase().trim() === (this.pQ.answer||'').toUpperCase().trim(); },
     pMore() { return this.pIdx < this.pQuestions.length - 1; },
     eQ() { return this.eQuestions[this.eIdx] || {}; },
@@ -506,8 +509,8 @@ const app = Vue.createApp({
     async loadPkgs() { try { this.packages = await this.api('/api/user/packages') || []; } catch(e) {} },
 
     async restartPractice() {
-      try { await this.api('/api/practice/reset', { method:'POST' }); } catch(e) {}
-      this.startPractice();
+      try { await this.api('/api/practice/reset', { method:'POST', body:{ type: this.pType } }); } catch(e) {}
+      this.startPractice(this.pType);
     },
 
     async activate() {
@@ -532,9 +535,10 @@ const app = Vue.createApp({
     },
 
     // Practice
-    async startPractice() {
+    async startPractice(type) {
+      this.pType = type || 'single';
       try {
-        const res = await this.api('/api/practice/questions');
+        const res = await this.api('/api/practice/questions?type=' + this.pType);
         if (res._code && res._code !== 0) { this.toast(res._message); return; }
         this.pQuestions = res.questions || [];
         this.pIdx = res.progress || 0;
@@ -563,7 +567,7 @@ const app = Vue.createApp({
     async submit() {
       if (!this.pAnswer) return;
       try {
-        await this.api('/api/practice/answer', { method:'POST', body:{ question_id:this.pQ.id, user_answer:this.pAnswer } });
+        await this.api('/api/practice/answer', { method:'POST', body:{ question_id:this.pQ.id, user_answer:this.pAnswer, practice_type: this.pType } });
         this.pSub = true;
       } catch(e) { this.toast('提交失败'); }
     },

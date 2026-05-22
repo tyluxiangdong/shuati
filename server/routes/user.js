@@ -81,11 +81,11 @@ router.post('/activate', validate({
   } catch (e) { next(e); }
 });
 
-// 用户端套餐列表
+// 用户端套餐列表（公开）
 router.get('/packages', (req, res, next) => {
   try {
     const db = getDb();
-    const packages = db.prepare("SELECT id, name, description, valid_days, single_count, multi_count, judge_count, price FROM packages WHERE status = 'active'").all();
+    const packages = db.prepare("SELECT id, name, description, valid_days, price FROM packages WHERE status = 'active'").all();
     res.json(ok(packages));
   } catch (e) { next(e); }
 });
@@ -99,15 +99,20 @@ router.get('/stats', userAuth, (req, res, next) => {
     const examCount = db.prepare('SELECT COUNT(*) as cnt FROM exam_records WHERE user_id = ?').get(req.user.id).cnt;
     const avgScore = db.prepare('SELECT AVG(score) as avg FROM exam_records WHERE user_id = ?').get(req.user.id);
 
-    const progress = db.prepare(
-      `SELECT p.name as pkg_name, up.current_index, p.single_count + p.multi_count + p.judge_count as total
-       FROM user_progress up JOIN packages p ON up.package_id = p.id WHERE up.user_id = ?`
-    ).get(req.user.id);
+    // 各题型进度
+    const allProgress = db.prepare(
+      'SELECT type, current_index FROM user_progress WHERE user_id = ? AND type != ?'
+    ).all(req.user.id, 'all');
+
+    const singleTotal = db.prepare("SELECT COUNT(*) as cnt FROM questions WHERE type = 'single'").get().cnt;
+    const multiTotal = db.prepare("SELECT COUNT(*) as cnt FROM questions WHERE type = 'multi'").get().cnt;
+    const judgeTotal = db.prepare("SELECT COUNT(*) as cnt FROM questions WHERE type = 'judge'").get().cnt;
 
     res.json(ok({
       wrongCount, favCount, examCount,
       avgScore: avgScore?.avg ? Math.round(avgScore.avg) : 0,
-      progress,
+      progress: allProgress,
+      totals: { single: singleTotal, multi: multiTotal, judge: judgeTotal },
     }));
   } catch (e) { next(e); }
 });

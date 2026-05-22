@@ -21,11 +21,10 @@ router.post('/', adminAuth, validate({
 }), (req, res, next) => {
   try {
     const db = getDb();
-    const { name, description, valid_days, single_count, multi_count, judge_count, exam_total, pass_score, exam_time, price } = req.body;
+    const { name, description, valid_days, price } = req.body;
     const result = db.prepare(
-      `INSERT INTO packages (name, description, valid_days, single_count, multi_count, judge_count, exam_total, pass_score, exam_time, price) 
-       VALUES (?,?,?,?,?,?,?,?,?,?)`
-    ).run(name, description || '', valid_days || 365, single_count || 0, multi_count || 0, judge_count || 0, exam_total || 50, pass_score || 60, exam_time || 0, price || 0);
+      `INSERT INTO packages (name, description, valid_days, price) VALUES (?,?,?,?)`
+    ).run(name, description || '', valid_days || 365, price || 0);
     res.json(ok({ id: result.lastInsertRowid }, '创建成功'));
   } catch (e) { next(e); }
 });
@@ -36,10 +35,10 @@ router.put('/:id', adminAuth, validate({
 }), (req, res, next) => {
   try {
     const db = getDb();
-    const { name, description, valid_days, single_count, multi_count, judge_count, exam_total, pass_score, exam_time, price } = req.body;
+    const { name, description, valid_days, price } = req.body;
     db.prepare(
-      `UPDATE packages SET name=?, description=?, valid_days=?, single_count=?, multi_count=?, judge_count=?, exam_total=?, pass_score=?, exam_time=?, price=? WHERE id=?`
-    ).run(name, description || '', valid_days, single_count, multi_count, judge_count, exam_total, pass_score, exam_time, price, req.params.id);
+      `UPDATE packages SET name=?, description=?, valid_days=?, price=? WHERE id=?`
+    ).run(name, description || '', valid_days, price, req.params.id);
     res.json(ok(null, '更新成功'));
   } catch (e) { next(e); }
 });

@@ -27,6 +27,8 @@ const userRouter = require('./routes/user');
 const practiceRouter = require('./routes/practice');
 const examRouter = require('./routes/exam');
 const recordsRouter = require('./routes/records');
+const examConfigRouter = require('./routes/exam-config');
+const tagsRouter = require('./routes/tags');
 
 const app = express();
 
@@ -64,6 +66,8 @@ app.use('/api/serials', serialsRouter);      // 序列号管理
 app.use('/api/user', userRouter);            // 用户登录、激活
 app.use('/api/practice', practiceRouter);    // 顺序刷题
 app.use('/api/exam', examRouter);            // 考试模式
+app.use('/api/exam-config', examConfigRouter); // 考试配置
+app.use('/api/tags', tagsRouter);            // 标签管理
 app.use('/api', recordsRouter);              // 错题本 + 收藏 (/api/wrongs, /api/favorites)
 
 // ==================== 全局错误处理 ====================

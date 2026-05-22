@@ -30,12 +30,6 @@ function initDB() {
       name TEXT NOT NULL,
       description TEXT DEFAULT '',
       valid_days INTEGER NOT NULL DEFAULT 365,
-      single_count INTEGER NOT NULL DEFAULT 30,
-      multi_count INTEGER NOT NULL DEFAULT 10,
-      judge_count INTEGER NOT NULL DEFAULT 10,
-      exam_total INTEGER NOT NULL DEFAULT 50,
-      pass_score INTEGER NOT NULL DEFAULT 60,
-      exam_time INTEGER DEFAULT 0,
       price REAL DEFAULT 0,
       status TEXT DEFAULT 'active',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -118,15 +112,39 @@ function initDB() {
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
 
+    CREATE TABLE IF NOT EXISTS exam_config (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      single_count INTEGER NOT NULL DEFAULT 30,
+      multi_count INTEGER NOT NULL DEFAULT 10,
+      judge_count INTEGER NOT NULL DEFAULT 10,
+      pass_score INTEGER NOT NULL DEFAULT 60,
+      exam_time INTEGER DEFAULT 0,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS tags (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      color TEXT DEFAULT '#667eea',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS question_tags (
+      question_id INTEGER NOT NULL,
+      tag_id INTEGER NOT NULL,
+      PRIMARY KEY (question_id, tag_id),
+      FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE,
+      FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS user_progress (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
-      package_id INTEGER,
+      type TEXT NOT NULL DEFAULT 'single',
       current_index INTEGER NOT NULL DEFAULT 0,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(user_id, package_id),
-      FOREIGN KEY (user_id) REFERENCES users(id),
-      FOREIGN KEY (package_id) REFERENCES packages(id)
+      UNIQUE(user_id, type),
+      FOREIGN KEY (user_id) REFERENCES users(id)
     );
   `);
 
@@ -136,6 +154,9 @@ function initDB() {
   } catch (e) {
     // 列已存在则忽略
   }
+
+  // 迁移 v3.0：packages 表去掉题型配置字段、user_progress 改为按 type 追踪
+  migrateV3(database);
 
   // 创建管理员账号（密码 bcrypt 哈希）
   const adminExists = database.prepare('SELECT id FROM admins WHERE username = ?').get('admin');
@@ -153,10 +174,10 @@ function seedIfEmpty(database) {
   // 套餐
   const pkgCount = database.prepare('SELECT COUNT(*) as cnt FROM packages').get();
   if (pkgCount.cnt === 0) {
-    database.prepare(`INSERT INTO packages (name, description, valid_days, single_count, multi_count, judge_count, price) 
-      VALUES (?, ?, ?, ?, ?, ?, ?)`).run('基础刷题包', '包含基础题库，适合日常练习', 365, 20, 5, 5, 29.9);
-    database.prepare(`INSERT INTO packages (name, description, valid_days, single_count, multi_count, judge_count, price) 
-      VALUES (?, ?, ?, ?, ?, ?, ?)`).run('高级冲刺包', '包含全部题库，适合考前冲刺', 180, 40, 10, 10, 59.9);
+    database.prepare(`INSERT INTO packages (name, description, valid_days, price) 
+      VALUES (?, ?, ?, ?)`).run('基础刷题包', '包含基础题库，适合日常练习\n\n套餐内容：\n• 题库全量访问权限\n• 顺序练习 + 随机刷题\n• 错题本 + 收藏夹\n• 考试模式模拟测试', 365, 29.9);
+    database.prepare(`INSERT INTO packages (name, description, valid_days, price) 
+      VALUES (?, ?, ?, ?)`).run('高级冲刺包', '包含全部题库与增值服务\n\n套餐内容：\n• 全部题库访问权限\n• 所有练习模式\n• AI 智能推荐薄弱点\n• 考前冲刺模拟\n• 180天有效期', 180, 59.9);
     console.log('默认套餐已创建');
   }
 
@@ -213,6 +234,81 @@ function seedDemoQuestions(database) {
 
   insertMany(questions);
   console.log(`已导入 ${questions.length} 道演示题目`);
+}
+
+function migrateV3(database) {
+  // 检查 packages 表是否包含旧题型配置列
+  let hasOldColumns = false;
+  try {
+    database.prepare('SELECT single_count FROM packages LIMIT 1').get();
+    hasOldColumns = true;
+  } catch (e) {
+    // 列不存在，已是最新 schema
+  }
+
+  if (hasOldColumns) {
+    console.log('检测到旧版 packages 表结构，正在迁移...');
+    database.pragma('foreign_keys = OFF');
+    try {
+      database.exec(`
+        CREATE TABLE packages_v3 (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          description TEXT DEFAULT '',
+          valid_days INTEGER NOT NULL DEFAULT 365,
+          price REAL DEFAULT 0,
+          status TEXT DEFAULT 'active',
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        INSERT INTO packages_v3 (id, name, description, valid_days, price, status, created_at)
+          SELECT id, name, description, valid_days, price, status, created_at FROM packages;
+        DROP TABLE packages;
+        ALTER TABLE packages_v3 RENAME TO packages;
+      `);
+      console.log('packages 表迁移完成');
+    } finally {
+      database.pragma('foreign_keys = ON');
+    }
+  }
+
+  // 检查 old user_progress schema (有 package_id 列)
+  let hasOldProgress = false;
+  try {
+    database.prepare('SELECT package_id FROM user_progress LIMIT 1').get();
+    hasOldProgress = true;
+  } catch (e) {
+    // 列不存在或表不存在
+  }
+
+  if (hasOldProgress) {
+    console.log('检测到旧版 user_progress 表结构，正在迁移...');
+    database.pragma('foreign_keys = OFF');
+    try {
+      // 旧表数据按 user_id+package_id 存，新版按 user_id+type，直接重建
+      database.exec('DROP TABLE IF EXISTS user_progress');
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS user_progress (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL,
+          type TEXT NOT NULL DEFAULT 'single',
+          current_index INTEGER NOT NULL DEFAULT 0,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(user_id, type),
+          FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+      `);
+      console.log('user_progress 表迁移完成');
+    } finally {
+      database.pragma('foreign_keys = ON');
+    }
+  }
+
+  // 写入默认考试配置（如果不存在）
+  const configExists = database.prepare('SELECT id FROM exam_config WHERE id = 1').get();
+  if (!configExists) {
+    database.prepare('INSERT INTO exam_config (id) VALUES (1)').run();
+    console.log('默认考试配置已创建');
+  }
 }
 
 module.exports = { getDb, initDB };
