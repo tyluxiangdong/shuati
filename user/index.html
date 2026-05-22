@@ -197,7 +197,8 @@
         <div style="font-size:56px;margin-bottom:8px">🎉</div>
         <h2>本轮刷题完成！</h2>
         <p style="color:#909399;margin:8px 0 20px">错题已自动加入错题本</p>
-        <button class="btn btn-primary" @click="goHome">返回首页</button>
+        <button class="btn btn-primary mb-12" @click="restartPractice">重新开始</button>
+        <button class="btn btn-outline" @click="goHome">返回首页</button>
       </div>
       <div v-else-if="pQuestions.length" class="page">
         <div class="pbar"><div class="fill" :style="{width:((pIdx+1)/pQuestions.length*100)+'%'}"></div></div>
@@ -246,17 +247,17 @@
         <button class="btn btn-primary mt-20" @click="goHome">返回首页</button>
       </div>
       <div v-else class="page">
-        <div class="pbar"><div class="fill" :style="{width:((eIdx+1)/eQuestions.length*100)+'%'}"></div></div>
+        <div class="pbar"><div class="fill" :style="{width:(eAnsweredCount/eQuestions.length*100)+'%'}"></div></div>
         <div class="qhead"><span>{{eIdx+1}} / {{eQuestions.length}}</span></div>
         <div class="qtype" :class="eQ.type">{{tLabel(eQ.type)}}</div>
         <div class="qtitle">{{eQ.title}}</div>
         <div class="opts">
-          <button v-for="(v,k) in eOptions" :key="k" class="opt" :class="{sel:eAnswers[eQ.id]===k}" @click="eAnswers[eQ.id]=k">
+          <button v-for="(v,k) in eOptions" :key="k" class="opt" :class="{sel:(eQ.type==='multi'?(eAnswers[eQ.id]||'').includes(k):eAnswers[eQ.id]===k)}" @click="examSelect(k)">
             <span class="ol">{{k}}</span><span>{{v}}</span>
           </button>
         </div>
         <div class="mt-20" style="display:flex;gap:12px">
-          <button v-if="eIdx>0" class="btn btn-outline" @click="eIdx--">上一题</button>
+          <button v-if="eIdx>0" class="btn btn-outline" @click="eIdx--" style="flex:1">上一题</button>
           <button v-if="eMore" class="btn btn-primary" @click="eIdx++" style="flex:1">下一题</button>
           <button v-if="eIsLast" class="btn btn-danger" @click="submitExam" style="flex:1">提交试卷</button>
         </div>
@@ -271,6 +272,7 @@
     <div v-if="state==='wrongs'">
       <div class="nav"><span class="back" @click="goHome">←</span> 错题本</div>
       <div class="page">
+        <button v-if="wrongs.length" class="btn btn-primary mb-12" @click="startWrongPractice">📝 开始练习错题（{{wrongs.length}}道）</button>
         <div v-if="!wrongs.length" class="empty"><div class="ei">🎉</div><p>暂无错题，继续保持！</p></div>
         <div v-for="w in wrongs" :key="w.wrong_id" class="witem">
           <div class="wt">{{w.title}}</div>
@@ -296,6 +298,41 @@
         <div class="feedback ok mt-20">
           <div style="font-weight:600;margin-bottom:4px">正确答案：{{wdQ.answer}}</div>
           <div v-if="wdQ.analysis">{{wdQ.analysis}}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Wrong Practice -->
+    <div v-if="state==='wrongPractice'">
+      <div class="nav"><span class="back" @click="loadWrongs();state='wrongs'">←</span> 错题练习</div>
+      <div v-if="wpDone" class="page" style="text-align:center">
+        <div style="font-size:56px;margin-bottom:8px">🎉</div>
+        <h2>错题练习完成！</h2>
+        <p style="color:#909399;margin:8px 0 20px">连续答对3次的错题已自动移除</p>
+        <button class="btn btn-primary" @click="loadWrongs();state='wrongs'">返回错题本</button>
+      </div>
+      <div v-else-if="wpQuestions.length" class="page">
+        <div class="pbar"><div class="fill" :style="{width:((wpIdx+1)/wpQuestions.length*100)+'%'}"></div></div>
+        <div class="qhead"><span>{{wpIdx+1}} / {{wpQuestions.length}}</span></div>
+        <div class="qtype" :class="wpQ.type">{{tLabel(wpQ.type)}}</div>
+        <div class="qtitle">{{wpQ.title}}</div>
+        <div class="opts">
+          <button v-for="(v,k) in wpOptions" :key="k" class="opt"
+            :class="{sel:wpAnswer===k&&!wpSub, correct:wpSub&&k===wpQ.answer, wrong:wpSub&&wpAnswer===k&&k!==wpQ.answer}"
+            @click="selectWrongAnswer(k)">
+            <span class="ol">{{k}}</span><span>{{v}}</span>
+          </button>
+        </div>
+        <div v-if="wpSub" class="feedback" :class="wpOK?'ok':'err'">
+          <div style="font-weight:600;margin-bottom:4px">{{wpOK?'正确！':'错误！正确答案是 '+wpQ.answer}}</div>
+          <div v-if="wpQ.analysis">{{wpQ.analysis}}</div>
+          <div v-if="wpRemoved" style="color:#67c23a;margin-top:4px;font-weight:600">已连续答对3次，错题已移除！</div>
+        </div>
+        <div class="mt-20" style="display:flex;gap:12px">
+          <button v-if="!wpSub" class="btn btn-primary" @click="submitWrongAnswer" :disabled="!wpAnswer">提交答案</button>
+          <button v-if="wpSub" class="btn" :class="wpMore?'btn-primary':'btn-outline'" @click="nextWrongQ" style="flex:1">
+            {{wpMore?'下一题':'完成练习'}}
+          </button>
         </div>
       </div>
     </div>
@@ -371,6 +408,14 @@ const app = Vue.createApp({
       wrongs: [],
       wdQ: {},
 
+      // Wrong Practice
+      wpQuestions: [],
+      wpIdx: 0,
+      wpAnswer: '',
+      wpSub: false,
+      wpDone: false,
+      wpRemoved: false,
+
       // History cache
       _records: []
     };
@@ -388,12 +433,19 @@ const app = Vue.createApp({
     eOptions() { return this.getOpts(this.eQ); },
     eMore() { return this.eIdx < this.eQuestions.length - 1; },
     eIsLast() { return this.eIdx === this.eQuestions.length - 1; },
+    eAnsweredCount() {
+      return this.eQuestions.filter(q => this.eAnswers[q.id] && this.eAnswers[q.id].length > 0).length;
+    },
     eWrongDetails() {
       if (!this.eResult.answerDetails) return [];
       return this.eResult.answerDetails.filter(a => !a.isCorrect);
     },
     records() { return this._records || []; },
-    wdOptions() { return this.getOpts(this.wdQ); }
+    wdOptions() { return this.getOpts(this.wdQ); },
+    wpQ() { return this.wpQuestions[this.wpIdx] || {}; },
+    wpOptions() { return this.getOpts(this.wpQ); },
+    wpOK() { return this.wpSub && (this.wpAnswer||'').toUpperCase().trim() === (this.wpQ.answer||'').toUpperCase().trim(); },
+    wpMore() { return this.wpIdx < this.wpQuestions.length - 1; }
   },
   methods: {
     toast(t) {
@@ -419,7 +471,16 @@ const app = Vue.createApp({
         init.body = JSON.stringify(init.body);
         h['Content-Type'] = 'application/json';
       }
-      return fetch(API + path, init).then(r => r.json());
+      const res = await fetch(API + path, init).then(r => r.json());
+      // 统一响应格式 {code, data, message} -> 展开 data 到顶层，同时保留 message
+      if (res.code !== undefined) {
+        const data = res.data;
+        const result = Array.isArray(data) ? [...data] : { ...(data || {}) };
+        result._code = res.code;
+        result._message = res.message;
+        return result;
+      }
+      return res;
     },
 
     async login() {
@@ -444,24 +505,29 @@ const app = Vue.createApp({
     async loadStats() { try { this.stats = await this.api('/api/user/stats') || {}; } catch(e) {} },
     async loadPkgs() { try { this.packages = await this.api('/api/user/packages') || []; } catch(e) {} },
 
+    async restartPractice() {
+      try { await this.api('/api/practice/reset', { method:'POST' }); } catch(e) {}
+      this.startPractice();
+    },
+
     async activate() {
       if (!this.code.trim()) return;
       this.activating = true;
       try {
-        const res = await this.api('/api/user/activate', { method:'POST', body:{ openid: this.info.openid, code: this.code.trim() } });
-        if (res.success) {
+        const res = await this.api('/api/user/activate', { method:'POST', body:{ openid: this.info.user?.openid, code: this.code.trim() } });
+        if (res._code === 0) {
           Object.assign(this.info, res.user, { activated: true, expires_at: res.expires_at, package: res.package });
           this.code = '';
           this.toast('激活成功！');
           await this.loadStats();
-        } else { this.toast(res.error||'激活失败'); }
+        } else { this.toast(res._message||'激活失败'); }
       } catch(e) { this.toast('激活失败'); }
       finally { this.activating = false; }
     },
 
     goHome() {
       this.state = 'home';
-      this.pDone = false; this.eSub = false;
+      this.pDone = false; this.eSub = false; this.eResult = {}; this.wpDone = false;
       this.loadStats();
     },
 
@@ -469,7 +535,7 @@ const app = Vue.createApp({
     async startPractice() {
       try {
         const res = await this.api('/api/practice/questions');
-        if (res.error) { this.toast(res.error); return; }
+        if (res._code && res._code !== 0) { this.toast(res._message); return; }
         this.pQuestions = res.questions || [];
         this.pIdx = res.progress || 0;
         this.pAnswer = ''; this.pSub = false; this.pDone = false;
@@ -484,6 +550,15 @@ const app = Vue.createApp({
         this.pAnswer = cur.includes(k) ? cur.replace(k,'') : cur + k;
         this.pAnswer = this.pAnswer.split('').sort().join('');
       } else { this.pAnswer = k; }
+    },
+    examSelect(k) {
+      if (this.eQ.type === 'multi') {
+        const cur = this.eAnswers[this.eQ.id] || '';
+        this.eAnswers[this.eQ.id] = cur.includes(k) ? cur.replace(k, '') : cur + k;
+        this.eAnswers[this.eQ.id] = this.eAnswers[this.eQ.id].split('').sort().join('');
+      } else {
+        this.eAnswers[this.eQ.id] = k;
+      }
     },
     async submit() {
       if (!this.pAnswer) return;
@@ -501,7 +576,7 @@ const app = Vue.createApp({
     async startExam() {
       try {
         const res = await this.api('/api/exam/start', { method:'POST' });
-        if (res.error) { this.toast(res.error); return; }
+        if (res._code && res._code !== 0) { this.toast(res._message); return; }
         this.eId = res.exam_id;
         this.eQuestions = res.questions || [];
         this.eIdx = 0; this.eAnswers = {}; this.eSub = false; this.eShow = false;
@@ -509,6 +584,12 @@ const app = Vue.createApp({
       } catch(e) { this.toast('开始失败'); }
     },
     async submitExam() {
+      const total = this.eQuestions.length;
+      const answered = this.eAnsweredCount;
+      const unanswered = total - answered;
+      if (unanswered > 0) {
+        if (!confirm(`您还有 ${unanswered} 道题未作答，确定提交吗？\n未作答的题目将记为错误。`)) return;
+      }
       const answers = this.eQuestions.map(q => ({ question_id: q.id, user_answer: this.eAnswers[q.id]||'' }));
       try {
         const res = await this.api('/api/exam/submit', { method:'POST', body:{ exam_id: this.eId, answers } });
@@ -522,6 +603,41 @@ const app = Vue.createApp({
     viewWrong(w) { this.wdQ = w; this.state = 'wrongDetail'; },
     async delWrong(w) {
       try { await this.api('/api/wrongs/'+w.wrong_id, { method:'DELETE' }); this.wrongs = this.wrongs.filter(q=>q.wrong_id!==w.wrong_id); await this.loadStats(); this.toast('已移除'); } catch(e) {}
+    },
+
+    // Wrong Practice
+    async startWrongPractice() {
+      try {
+        const res = await this.api('/api/wrongs/practice');
+        this.wpQuestions = res || [];
+        if (!this.wpQuestions.length) { this.toast('没有错题可练习'); return; }
+        this.wpIdx = 0; this.wpAnswer = ''; this.wpSub = false; this.wpDone = false; this.wpRemoved = false;
+        this.state = 'wrongPractice';
+      } catch(e) { this.toast('加载失败'); }
+    },
+    selectWrongAnswer(k) {
+      if (this.wpSub) return;
+      if (this.wpQ.type === 'multi') {
+        const cur = this.wpAnswer || '';
+        this.wpAnswer = cur.includes(k) ? cur.replace(k, '') : cur + k;
+        this.wpAnswer = this.wpAnswer.split('').sort().join('');
+      } else { this.wpAnswer = k; }
+    },
+    async submitWrongAnswer() {
+      if (!this.wpAnswer) return;
+      try {
+        const res = await this.api('/api/wrongs/answer', {
+          method:'POST', body:{ wrong_id: this.wpQ.wrong_id, question_id: this.wpQ.id, user_answer: this.wpAnswer }
+        });
+        this.wpQ.answer = res.correctAnswer;
+        this.wpQ.analysis = res.analysis;
+        this.wpSub = true;
+        if (res.removed) { this.wpRemoved = true; this.toast('已连续答对3次，错题已移除！'); }
+      } catch(e) { this.toast('提交失败'); }
+    },
+    nextWrongQ() {
+      this.wpIdx++; this.wpAnswer = ''; this.wpSub = false; this.wpRemoved = false;
+      if (this.wpIdx >= this.wpQuestions.length) { this.wpDone = true; this.loadWrongs(); this.loadStats(); }
     },
 
     // History

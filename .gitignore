@@ -15,6 +15,11 @@ server/uploads/*
 *.log
 npm-debug.log*
 
+# Environment (contains secrets)
+.env
+.env.local
+.env.*.local
+
 # OS files
 .DS_Store
 Thumbs.db

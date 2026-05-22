@@ -320,7 +320,7 @@
 
 <script>
 const { createApp } = Vue;
-const API = 'http://localhost:3000';
+const API = window.location.origin;
 
 const app = createApp({
   data() {
@@ -385,13 +385,13 @@ const app = createApp({
       this.loginLoading = true;
       try {
         const res = await this.api('/api/admin/login', { method: 'POST', body: this.loginForm });
-        if (res.token) {
-          this.token = res.token;
-          localStorage.setItem('admin_token', res.token);
+        if (res.code === 0 && res.data?.token) {
+          this.token = res.data.token;
+          localStorage.setItem('admin_token', res.data.token);
           this.loadStats();
           this.loadPackages();
         } else {
-          ElementPlus.ElMessage.error(res.error || '登录失败');
+          ElementPlus.ElMessage.error(res.message || '登录失败');
         }
       } catch(e) {
         ElementPlus.ElMessage.error('网络错误');
@@ -407,11 +407,11 @@ const app = createApp({
 
     async loadStats() {
       const res = await this.api('/api/admin/stats');
-      if (res.totalQuestions !== undefined) this.stats = res;
+      if (res.code === 0) this.stats = res.data;
     },
 
     // Packages
-    async loadPackages() { this.packages = await this.api('/api/packages') || []; },
+    async loadPackages() { const res = await this.api('/api/packages'); if (res.code === 0) this.packages = res.data; },
     editPkg(pkg) {
       this.editingPkg = pkg;
       this.pkgForm = { name: pkg.name, description: pkg.description, single_count: pkg.single_count, multi_count: pkg.multi_count, judge_count: pkg.judge_count, valid_days: pkg.valid_days, exam_total: pkg.exam_total, pass_score: pkg.pass_score, exam_time: pkg.exam_time, price: pkg.price };
@@ -420,23 +420,23 @@ const app = createApp({
     async savePkg() {
       this.saving = true;
       try {
-        if (this.editingPkg) {
-          await this.api('/api/packages/' + this.editingPkg.id, { method: 'PUT', body: this.pkgForm });
-        } else {
-          await this.api('/api/packages', { method: 'POST', body: this.pkgForm });
-        }
+        const res = this.editingPkg
+          ? await this.api('/api/packages/' + this.editingPkg.id, { method: 'PUT', body: this.pkgForm })
+          : await this.api('/api/packages', { method: 'POST', body: this.pkgForm });
+        if (res.code !== 0) { ElementPlus.ElMessage.error(res.message || '保存失败'); return; }
         this.showPkgDialog = false;
         this.loadPackages();
         this.loadStats();
-        ElementPlus.ElMessage.success('保存成功');
+        ElementPlus.ElMessage.success(res.message || '保存成功');
       } catch(e) {
-        ElementPlus.ElMessage.error('保存失败');
+        ElementPlus.ElMessage.error('网络错误');
       } finally { this.saving = false; }
     },
     async deletePkg(id) {
       try {
         await ElementPlus.ElMessageBox.confirm('确定删除该套餐？', '确认', { type: 'warning' });
-        await this.api('/api/packages/' + id, { method: 'DELETE' });
+        const res = await this.api('/api/packages/' + id, { method: 'DELETE' });
+        if (res.code !== 0) { ElementPlus.ElMessage.error(res.message || '删除失败'); return; }
         this.loadPackages();
         this.loadStats();
         ElementPlus.ElMessage.success('已删除');
@@ -449,8 +449,7 @@ const app = createApp({
       if (this.filterType) params.set('type', this.filterType);
       if (this.filterKeyword) params.set('keyword', this.filterKeyword);
       const res = await this.api('/api/questions?' + params);
-      this.questions = res.questions || [];
-      this.qTotal = res.total || 0;
+      if (res.code === 0) { this.questions = res.data.questions || []; this.qTotal = res.data.total || 0; }
     },
     onQSelect(selection) { this.selectQIds = selection.map(s => s.id); },
     editQ(q) {
@@ -461,23 +460,23 @@ const app = createApp({
     async saveQ() {
       this.saving = true;
       try {
-        if (this.editingQ) {
-          await this.api('/api/questions/' + this.editingQ.id, { method: 'PUT', body: this.qForm });
-        } else {
-          await this.api('/api/questions', { method: 'POST', body: this.qForm });
-        }
+        const res = this.editingQ
+          ? await this.api('/api/questions/' + this.editingQ.id, { method: 'PUT', body: this.qForm })
+          : await this.api('/api/questions', { method: 'POST', body: this.qForm });
+        if (res.code !== 0) { ElementPlus.ElMessage.error(res.message || '保存失败'); return; }
         this.showQDialog = false;
         this.loadQuestions();
         this.loadStats();
-        ElementPlus.ElMessage.success('保存成功');
+        ElementPlus.ElMessage.success(res.message || '保存成功');
       } catch(e) {
-        ElementPlus.ElMessage.error('保存失败');
+        ElementPlus.ElMessage.error('网络错误');
       } finally { this.saving = false; }
     },
     async deleteQ(id) {
       try {
         await ElementPlus.ElMessageBox.confirm('确定删除该题目？', '确认', { type: 'warning' });
-        await this.api('/api/questions/' + id, { method: 'DELETE' });
+        const res = await this.api('/api/questions/' + id, { method: 'DELETE' });
+        if (res.code !== 0) { ElementPlus.ElMessage.error(res.message || '删除失败'); return; }
         this.loadQuestions();
         this.loadStats();
         ElementPlus.ElMessage.success('已删除');
@@ -486,7 +485,8 @@ const app = createApp({
     async batchDeleteQ() {
       try {
         await ElementPlus.ElMessageBox.confirm(`确定删除选中的 ${this.selectQIds.length} 道题？`, '批量删除确认', { type: 'warning' });
-        await this.api('/api/questions/batch-delete', { method: 'POST', body: { ids: this.selectQIds } });
+        const res = await this.api('/api/questions/batch-delete', { method: 'POST', body: { ids: this.selectQIds } });
+        if (res.code !== 0) { ElementPlus.ElMessage.error(res.message || '批量删除失败'); return; }
         this.selectQIds = [];
         this.loadQuestions();
         this.loadStats();
@@ -497,12 +497,12 @@ const app = createApp({
       const fd = new FormData();
       fd.append('file', file);
       const res = await this.api('/api/questions/import', { method: 'POST', body: fd, headers: { 'Content-Type': undefined } });
-      if (res.success) {
-        ElementPlus.ElMessage.success(`成功导入 ${res.imported} 题，${res.errors} 条失败`);
+      if (res.code === 0) {
+        ElementPlus.ElMessage.success(res.message || `成功导入 ${res.data.imported} 题，${res.data.errors} 条失败`);
         this.loadQuestions();
         this.loadStats();
       } else {
-        ElementPlus.ElMessage.error(res.error || '导入失败');
+        ElementPlus.ElMessage.error(res.message || '导入失败');
       }
       return false;
     },
@@ -516,21 +516,20 @@ const app = createApp({
       if (this.serialStatus) params.set('status', this.serialStatus);
       if (this.serialKeyword) params.set('keyword', this.serialKeyword);
       const res = await this.api('/api/serials?' + params);
-      this.serials = res.serials || [];
-      this.sTotal = res.total || 0;
+      if (res.code === 0) { this.serials = res.data.serials || []; this.sTotal = res.data.total || 0; }
     },
     async generateSerials() {
       this.saving = true;
       try {
         const res = await this.api('/api/serials/generate', { method: 'POST', body: this.serialForm });
-        if (res.success) {
-          this.generatedCodes = res.codes;
+        if (res.code === 0) {
+          this.generatedCodes = res.data.codes;
           this.showSerialDialog = false;
           this.showCodesDialog = true;
           this.loadSerials();
           this.loadStats();
         } else {
-          ElementPlus.ElMessage.error(res.error);
+          ElementPlus.ElMessage.error(res.message);
         }
       } catch(e) {
         ElementPlus.ElMessage.error('生成失败');
@@ -539,7 +538,8 @@ const app = createApp({
     async deactivateSerial(id) {
       try {
         await ElementPlus.ElMessageBox.confirm('确定作废该序列号？', '确认', { type: 'warning' });
-        await this.api('/api/serials/' + id, { method: 'PUT', body: { status: 'expired' } });
+        const res = await this.api('/api/serials/' + id, { method: 'PUT', body: { status: 'expired' } });
+        if (res.code !== 0) { ElementPlus.ElMessage.error(res.message || '操作失败'); return; }
         this.loadSerials();
         this.loadStats();
         ElementPlus.ElMessage.success('已作废');
@@ -557,8 +557,7 @@ const app = createApp({
     async loadUsers() {
       const params = new URLSearchParams({ page: this.uPage, pageSize: this.uPageSize });
       const res = await this.api('/api/users?' + params);
-      this.users = res.users || [];
-      this.uTotal = res.total || 0;
+      if (res.code === 0) { this.users = res.data.users || []; this.uTotal = res.data.total || 0; }
     },
   },
   watch: {
