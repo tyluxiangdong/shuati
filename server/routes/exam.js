@@ -16,11 +16,12 @@ router.post('/start', userAuth, (req, res, next) => {
 
     const examConfig = db.prepare('SELECT * FROM exam_config WHERE id = 1').get();
 
+    // 各题型内部随机抽取，但分组顺序固定：单选 → 判断 → 多选
     const singleQs = db.prepare('SELECT * FROM questions WHERE type = ? ORDER BY RANDOM() LIMIT ?').all('single', examConfig.single_count);
-    const multiQs = db.prepare('SELECT * FROM questions WHERE type = ? ORDER BY RANDOM() LIMIT ?').all('multi', examConfig.multi_count);
-    const judgeQs = db.prepare('SELECT * FROM questions WHERE type = ? ORDER BY RANDOM() LIMIT ?').all('judge', examConfig.judge_count);
+    const judgeQs  = db.prepare('SELECT * FROM questions WHERE type = ? ORDER BY RANDOM() LIMIT ?').all('judge',  examConfig.judge_count);
+    const multiQs  = db.prepare('SELECT * FROM questions WHERE type = ? ORDER BY RANDOM() LIMIT ?').all('multi',  examConfig.multi_count);
 
-    const allQs = [...singleQs, ...multiQs, ...judgeQs].sort(() => Math.random() - 0.5);
+    const allQs = [...singleQs, ...judgeQs, ...multiQs];
 
     const result = db.prepare('INSERT INTO exam_records (user_id, total) VALUES (?, ?)')
       .run(user.id, allQs.length);
